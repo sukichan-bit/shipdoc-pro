@@ -2347,6 +2347,10 @@ function generateCI(data) {
   const currency = d.currency;
   let totalPcs = 0, totalWt = 0, totalVal = 0;
   d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
+  // Sync CI weight with PL: use pallet gross weights when available
+  if (d.pallets && d.pallets.length > 0) {
+    totalWt = d.pallets.reduce((sum, p) => sum + (p.grossWeight || 0), 0);
+  }
 
   // Header boxes
   const hasNotify = d.notify && formatAddress(d.notify).trim();
@@ -2367,11 +2371,12 @@ function generateCI(data) {
       </div>`;
   }
 
-  const addressRow = `
-    <div class="doc-header-grid cols-2">
-      <div class="doc-header-box"><div class="box-label">Pickup Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.pickup))}</div></div>
-      <div class="doc-header-box"><div class="box-label">Delivery Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.delivery))}</div></div>
-    </div>`;
+  const hasPickup   = d.pickup   && formatAddress(d.pickup).trim();
+  const hasDelivery = d.delivery && formatAddress(d.delivery).trim();
+  const pickupBox   = hasPickup   ? `<div class="doc-header-box"><div class="box-label">Pickup Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.pickup))}</div></div>` : "";
+  const deliveryBox = hasDelivery ? `<div class="doc-header-box"><div class="box-label">Delivery Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.delivery))}</div></div>` : "";
+  const addrCols    = (hasPickup && hasDelivery) ? "cols-2" : "cols-1";
+  const addressRow  = (hasPickup || hasDelivery) ? `<div class="doc-header-grid ${addrCols}">${pickupBox}${deliveryBox}</div>` : "";
 
   // Fields
   let fieldsHTML = `
@@ -2490,11 +2495,12 @@ function generatePL(data) {
       </div>`;
   }
 
-  const addressRow = `
-    <div class="doc-header-grid cols-2">
-      <div class="doc-header-box"><div class="box-label">Pickup Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.pickup))}</div></div>
-      <div class="doc-header-box"><div class="box-label">Delivery Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.delivery))}</div></div>
-    </div>`;
+  const hasPickup   = d.pickup   && formatAddress(d.pickup).trim();
+  const hasDelivery = d.delivery && formatAddress(d.delivery).trim();
+  const pickupBox   = hasPickup   ? `<div class="doc-header-box"><div class="box-label">Pickup Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.pickup))}</div></div>` : "";
+  const deliveryBox = hasDelivery ? `<div class="doc-header-box"><div class="box-label">Delivery Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.delivery))}</div></div>` : "";
+  const addrCols    = (hasPickup && hasDelivery) ? "cols-2" : "cols-1";
+  const addressRow  = (hasPickup || hasDelivery) ? `<div class="doc-header-grid ${addrCols}">${pickupBox}${deliveryBox}</div>` : "";
 
   // Fields
   let fieldsHTML = `
