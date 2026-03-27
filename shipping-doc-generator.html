@@ -534,41 +534,44 @@ table { border-collapse: collapse; width: 100%; }
    PRINT STYLES — Commercial Invoice & Packing List
    ============================================================ */
 @media print {
-  body { background: white !important; font-size: 10pt !important; }
+  @page { size: A4; margin: 1.2cm 1.5cm; }
+
+  body { background: white !important; font-size: 9.5pt !important; }
   .sidebar, .main-header, .no-print { display: none !important; }
   .main { margin-left: 0 !important; }
   .main-body { padding: 0 !important; max-width: none !important; }
   .print-page {
-    page-break-after: always; padding: 10mm;
-    width: 100%; max-width: none;
+    page-break-after: always; break-after: page;
+    padding: 0; width: 100%; max-width: none;
   }
-  .print-page:last-child { page-break-after: auto; }
+  .print-page:last-child { page-break-after: auto; break-after: auto; }
   .print-doc { display: block !important; }
   .page { display: none !important; }
   .page#page-print { display: block !important; }
 
-  .doc-letterhead { text-align: center; margin-bottom: 6mm; }
-  .doc-letterhead img { max-height: 60px; max-width: 100%; }
-  .doc-title { text-align: center; font-size: 14pt; font-weight: 700; margin: 4mm 0; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 3mm; }
-  .doc-header-grid { display: grid; gap: 3mm; margin-bottom: 4mm; }
+  .doc-letterhead { text-align: center; margin-bottom: 4mm; }
+  .doc-letterhead img { max-height: 55px; max-width: 100%; }
+  .doc-title { text-align: center; font-size: 13pt; font-weight: 700; margin: 3mm 0; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 2mm; }
+  .doc-header-grid { display: grid; gap: 2.5mm; margin-bottom: 3mm; }
   .doc-header-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
   .doc-header-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .doc-header-grid.cols-1 { grid-template-columns: 1fr; }
   .doc-header-box { border: 1px solid #999; padding: 2mm 3mm; font-size: 8.5pt; line-height: 1.4; }
   .doc-header-box .box-label { font-weight: 700; font-size: 8pt; text-transform: uppercase; margin-bottom: 1mm; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 1mm; }
-  .doc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 8mm; margin-bottom: 4mm; font-size: 9pt; }
+  .doc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 8mm; margin-bottom: 3mm; font-size: 9pt; }
   .doc-fields .field { display: flex; gap: 2mm; }
   .doc-fields .field-label { font-weight: 700; white-space: nowrap; min-width: 100px; }
-  .doc-table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; font-size: 8.5pt; }
-  .doc-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; border: 1px solid #999; padding: 2mm 2.5mm; text-align: left; font-size: 8pt; }
-  .doc-table td { border: 1px solid #999; padding: 2mm 2.5mm; vertical-align: top; }
+  .doc-table { width: 100%; border-collapse: collapse; margin-bottom: 3mm; font-size: 8.5pt; }
+  .doc-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; border: 1px solid #999; padding: 1.5mm 2.5mm; text-align: left; font-size: 8pt; }
+  .doc-table td { border: 1px solid #999; padding: 1.5mm 2.5mm; vertical-align: top; }
   .doc-table .text-right { text-align: right; }
   .doc-table .total-row td { font-weight: 700; background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .doc-totals { margin-bottom: 4mm; font-size: 9pt; }
-  .doc-totals .total-line { display: flex; justify-content: flex-end; gap: 4mm; padding: 1mm 0; }
+  .doc-totals { margin-bottom: 3mm; font-size: 9pt; break-inside: avoid; }
+  .doc-totals .total-line { display: flex; justify-content: flex-end; gap: 4mm; padding: 0.5mm 0; }
   .doc-totals .total-line.grand { font-weight: 700; font-size: 10pt; border-top: 2px solid #333; padding-top: 2mm; margin-top: 1mm; }
-  .doc-declaration { font-size: 8.5pt; border: 1px solid #999; padding: 3mm; margin: 4mm 0; line-height: 1.5; }
-  .doc-footer { display: flex; justify-content: space-between; margin-top: 6mm; font-size: 9pt; }
-  .doc-footer .signature-line { border-top: 1px solid #333; padding-top: 2mm; min-width: 150px; text-align: center; margin-top: 15mm; }
+  .doc-declaration { font-size: 8.5pt; border: 1px solid #999; padding: 2.5mm; margin: 3mm 0; line-height: 1.4; break-inside: avoid; }
+  .doc-footer { display: flex; justify-content: space-between; margin-top: 4mm; font-size: 9pt; break-inside: avoid; break-before: avoid; }
+  .doc-footer .signature-line { border-top: 1px solid #333; padding-top: 2mm; min-width: 150px; text-align: center; margin-top: 10mm; }
   .doc-goods-desc { font-size: 8pt; line-height: 1.4; }
   .doc-goods-desc .sku { font-weight: 700; }
   .doc-goods-desc .detail { color: #555; }
@@ -588,6 +591,7 @@ table { border-collapse: collapse; width: 100%; }
 .print-page-preview .doc-header-grid { display: grid; gap: 3mm; margin-bottom: 4mm; }
 .print-page-preview .doc-header-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
 .print-page-preview .doc-header-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+.print-page-preview .doc-header-grid.cols-1 { grid-template-columns: 1fr; }
 .print-page-preview .doc-header-box { border: 1px solid #999; padding: 2mm 3mm; font-size: 8.5pt; line-height: 1.4; }
 .print-page-preview .doc-header-box .box-label { font-weight: 700; font-size: 8pt; text-transform: uppercase; margin-bottom: 1mm; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 1mm; }
 .print-page-preview .doc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 8mm; margin-bottom: 4mm; font-size: 9pt; }
