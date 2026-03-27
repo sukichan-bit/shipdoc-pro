@@ -2927,6 +2927,7 @@ function renderHistory() {
         <td>${d.lineItems?.length || 0}</td>
         <td>${sym}${totalVal.toFixed(2)}</td>
         <td class="actions">
+          <button class="btn btn-primary btn-sm" onclick="loadShipment('${s.id}')">Load</button>
           <button class="btn btn-outline btn-sm" onclick="cloneShipment('${s.id}')">Clone</button>
           <button class="btn btn-danger btn-sm" onclick="deleteShipment('${s.id}')">Del</button>
         </td>
@@ -2934,46 +2935,43 @@ function renderHistory() {
   }).join('');
 }
 
-function cloneShipment(id) {
-  const shipments = loadStore('shipments');
-  const record = shipments.find(s => s.id === id);
-  if (!record) return;
+function _populateShipmentForm(record, keepInvoiceNumber) {
   const d = record.data;
-
-  // Navigate to shipment
   navigateTo('shipment');
-
-  // Set mode
   setMode(d.mode);
-
-  // Set fields
-  document.getElementById('invoiceDate').value = d.invoiceDate || '';
-  document.getElementById('invoiceNumber').value = '';  // New invoice number
-  document.getElementById('puRef').value = d.puRef || '';
-  document.getElementById('carrier').value = d.carrier || '';
+  document.getElementById('invoiceDate').value    = d.invoiceDate || '';
+  document.getElementById('invoiceNumber').value  = keepInvoiceNumber ? (d.invoiceNumber || '') : '';
+  document.getElementById('puRef').value          = d.puRef || '';
+  document.getElementById('carrier').value        = d.carrier || '';
   document.getElementById('containerNumber').value = d.containerNumber || '';
-  document.getElementById('sealNumber').value = d.sealNumber || '';
-  document.getElementById('consigneeType').value = d.consigneeType || '';
-  document.getElementById('shippingTerm').value = d.shippingTerm || '';
-  document.getElementById('currency').value = d.currency || 'USD';
+  document.getElementById('sealNumber').value     = d.sealNumber || '';
+  document.getElementById('consigneeType').value  = d.consigneeType || '';
+  document.getElementById('shippingTerm').value   = d.shippingTerm || '';
+  document.getElementById('currency').value       = d.currency || 'USD';
   document.getElementById('shipmentRemarks').value = d.remarks || '';
-
-  // Set address dropdowns
   populateAddressDropdowns();
-  if (record.shipperSelectId) document.getElementById('shipperSelect').value = record.shipperSelectId;
-  if (record.buyerSelectId) document.getElementById('buyerSelect').value = record.buyerSelectId;
-  if (record.notifySelectId) document.getElementById('notifySelect').value = record.notifySelectId;
-  if (record.pickupSelectId) document.getElementById('pickupSelect').value = record.pickupSelectId;
+  if (record.shipperSelectId)  document.getElementById('shipperSelect').value  = record.shipperSelectId;
+  if (record.buyerSelectId)    document.getElementById('buyerSelect').value    = record.buyerSelectId;
+  if (record.notifySelectId)   document.getElementById('notifySelect').value   = record.notifySelectId;
+  if (record.pickupSelectId)   document.getElementById('pickupSelect').value   = record.pickupSelectId;
   if (record.deliverySelectId) document.getElementById('deliverySelect').value = record.deliverySelectId;
-
-  // Clone line items
   lineItems = (d.lineItems || []).map(li => ({ ...li, id: uid() }));
   renderLineItems();
-
-  // Clone pallets
   pallets = (d.pallets || []).map(p => ({ ...p, id: uid() }));
   renderPallets();
+}
 
+function loadShipment(id) {
+  const record = loadStore('shipments').find(s => s.id === id);
+  if (!record) return;
+  _populateShipmentForm(record, true);
+  toast('Draft loaded — continue where you left off.');
+}
+
+function cloneShipment(id) {
+  const record = loadStore('shipments').find(s => s.id === id);
+  if (!record) return;
+  _populateShipmentForm(record, false);
   toast('Shipment cloned. Update invoice number and details.');
 }
 
@@ -3026,7 +3024,10 @@ function refreshDashboard() {
         <td><span class="tag ${STATUS_CLASS[status]}">${status}</span></td>
         <td>${esc(d.shipper?.company||'-')} &rarr; ${esc(d.buyer?.company||'-')}</td>
         <td>${sym}${totalVal.toFixed(2)}</td>
-        <td><button class="btn btn-outline btn-sm" onclick="cloneShipment('${s.id}');navigateTo('shipment');">Clone</button></td>
+        <td>
+          <button class="btn btn-primary btn-sm" onclick="loadShipment('${s.id}')">Load</button>
+          <button class="btn btn-outline btn-sm" onclick="cloneShipment('${s.id}')">Clone</button>
+        </td>
       </tr>`;
     }).join('') + `</tbody></table>`;
 }
