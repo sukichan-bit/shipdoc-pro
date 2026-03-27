@@ -1792,7 +1792,7 @@ function formatAddress(a) {
   if (!a) return '';
   const parts = [];
   if (a.company) parts.push(a.company);
-  if (a.name && a.company) parts.push(a.name);
+  if (a.name) parts.push(a.name);
   if (a.line1) parts.push(a.line1);
   if (a.line2) parts.push(a.line2);
   const cityLine = [a.city, a.state, a.postal].filter(Boolean).join(', ');
