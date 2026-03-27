@@ -1485,7 +1485,8 @@ function openAddressModal(editId) {
             <div class="form-group"><label>Country</label><input type="text" id="addr_country" value="${esc(addr?.country)}"></div>
             <div class="form-group"><label>Phone</label><input type="text" id="addr_phone" value="${esc(addr?.phone)}"></div>
             <div class="form-group"><label>Email</label><input type="email" id="addr_email" value="${esc(addr?.email)}"></div>
-            <div class="form-group full"><label>VAT / EIN / Tax ID</label><input type="text" id="addr_taxid" value="${esc(addr?.taxid)}"></div>
+            <div class="form-group"><label>VAT / EIN / Tax ID</label><input type="text" id="addr_taxid" value="${esc(addr?.taxid)}"></div>
+            <div class="form-group"><label>EORI Number</label><input type="text" id="addr_eori" placeholder="e.g. GB123456789000" value="${esc(addr?.eori)}"></div>
             <div class="form-group full">
               <label>Tags (roles)</label>
               <div class="checkbox-group">
@@ -1519,7 +1520,7 @@ function saveAddress(editId) {
     city: val('addr_city'), state: val('addr_state'),
     postal: val('addr_postal'), country: val('addr_country'),
     phone: val('addr_phone'), email: val('addr_email'),
-    taxid: val('addr_taxid'), tags
+    taxid: val('addr_taxid'), eori: val('addr_eori'), tags
   };
   if (!data.company && !data.name) { toast('Name or Company required', 'error'); return; }
   const addresses = loadStore('addresses');
@@ -1800,6 +1801,7 @@ function formatAddress(a) {
   if (a.phone) parts.push('Tel: ' + a.phone);
   if (a.email) parts.push(a.email);
   if (a.taxid) parts.push('Tax ID: ' + a.taxid);
+  if (a.eori) parts.push('EORI: ' + a.eori);
   return parts.join('\n');
 }
 
