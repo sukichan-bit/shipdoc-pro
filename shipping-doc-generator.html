@@ -2651,164 +2651,256 @@ function exportPDF(data, which) {
 }
 
 /* ---- EXCEL (.xls via HTML table) ---- */
-function exportExcel(data, which, ref) {
-  const sheets = [];
-  if (which === 'ci' || which === 'both') sheets.push({ name: 'Commercial Invoice', html: buildExcelCI(data) });
-  if (which === 'pl' || which === 'both') sheets.push({ name: 'Packing List',        html: buildExcelPL(data) });
+/* ============================================================
+   SHARED TABLE-BASED DOCUMENT GENERATOR  (Word + Excel)
+   Uses inline-styled HTML tables — no CSS Grid / Flexbox
+   so both Word and Excel render it correctly with letterhead.
+   ============================================================ */
 
-  // Multi-sheet: use one HTML file per sheet approach (single tab per download)
-  sheets.forEach(sheet => {
+function _getLhImgTag(maxH) {
+  const list = getLetterheads();
+  const lh = list.find(l => l.id === selectedLetterheadId);
+  if (!lh) return '';
+  return `<img src="${lh.data}" alt="" style="max-height:${maxH}px;max-width:320px;display:block;margin:0 auto;">`;
+}
+
+function buildDocBodyHTML(d, isCI, includeSigStamp) {
+  const isSea  = d.mode === 'SEA';
+  const curr   = d.currency;
+  const FA     = a => esc(formatAddress(a));
+
+  /* ---- style helpers ---- */
+  const BOX = (label, content) =>
+    `<td style="border:1px solid #999;padding:3px 6px;vertical-align:top;">
+       <div style="font-weight:bold;font-size:7.5pt;text-transform:uppercase;color:#444;border-bottom:1px solid #ccc;padding-bottom:2px;margin-bottom:3px;">${label}</div>
+       <div style="white-space:pre-wrap;font-size:9pt;line-height:1.4;">${content}</div>
+     </td>`;
+
+  const FIELD = (lbl, val) =>
+    `<td style="border:1px solid #ccc;padding:2px 5px;font-weight:bold;font-size:8.5pt;background:#f1f5f9;white-space:nowrap;">${lbl}</td>
+     <td style="border:1px solid #ccc;padding:2px 5px;font-size:8.5pt;">${esc(val)}</td>`;
+
+  const TH  = s => `<th style="background:#1a2744;color:#fff;font-weight:bold;border:1px solid #777;padding:2px 5px;font-size:8pt;text-align:left;">${s}</th>`;
+  const THR = s => `<th style="background:#1a2744;color:#fff;font-weight:bold;border:1px solid #777;padding:2px 5px;font-size:8pt;text-align:right;">${s}</th>`;
+  const TD  = (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;vertical-align:top;${extra}">${s}</td>`;
+  const TDR = (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;vertical-align:top;text-align:right;${extra}">${s}</td>`;
+  const TOT = (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;font-weight:bold;background:#f1f5f9;${extra}">${s}</td>`;
+  const TOTR= (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;font-weight:bold;background:#f1f5f9;text-align:right;${extra}">${s}</td>`;
+
+  /* ---- Letterhead ---- */
+  const lhTag = _getLhImgTag(65);
+  const letterhead = lhTag
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;"><tr><td style="text-align:center;border:none;">${lhTag}</td></tr></table>`
+    : '';
+
+  /* ---- Title ---- */
+  const titleBlock =
+    `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+       <tr><td style="border:none;text-align:center;font-size:14pt;font-weight:bold;text-transform:uppercase;border-bottom:2px solid #333;padding-bottom:4px;">${isCI ? 'COMMERCIAL INVOICE' : 'PACKING LIST'}</td></tr>
+     </table>`;
+
+  /* ---- Header boxes (Shipper / Buyer / Notify) ---- */
+  const hasNotify    = d.notify   && formatAddress(d.notify).trim();
+  const buyerLabel   = isCI ? (isSea ? 'Sold To / Buyer' : 'Importer / Delivery Address') : 'Importer / Sold To';
+  const shipperLabel = isCI ? 'Shipper' : 'Sender';
+  const headerCols   = hasNotify
+    ? `<colgroup><col width="33%"><col width="34%"><col width="33%"></colgroup>
+       <tr>${BOX(shipperLabel,FA(d.shipper))}${BOX(buyerLabel,FA(d.buyer))}${BOX('Notify Party',FA(d.notify))}</tr>`
+    : `<colgroup><col width="50%"><col width="50%"></colgroup>
+       <tr>${BOX(shipperLabel,FA(d.shipper))}${BOX(buyerLabel,FA(d.buyer))}</tr>`;
+  const headerTable =
+    `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">${headerCols}</table>`;
+
+  /* ---- Address row (Pickup / Delivery — hidden when empty) ---- */
+  const hasPickup   = d.pickup   && formatAddress(d.pickup).trim();
+  const hasDelivery = d.delivery && formatAddress(d.delivery).trim();
+  let addrTable = '';
+  if (hasPickup || hasDelivery) {
+    let cols, cells;
+    if (hasPickup && hasDelivery) {
+      cols  = `<colgroup><col width="50%"><col width="50%"></colgroup>`;
+      cells = `${BOX('Pickup Address',FA(d.pickup))}${BOX('Delivery Address',FA(d.delivery))}`;
+    } else if (hasPickup) {
+      cols  = `<colgroup><col width="100%"></colgroup>`;
+      cells = BOX('Pickup Address', FA(d.pickup));
+    } else {
+      cols  = `<colgroup><col width="100%"></colgroup>`;
+      cells = BOX('Delivery Address', FA(d.delivery));
+    }
+    addrTable = `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">${cols}<tr>${cells}</tr></table>`;
+  }
+
+  /* ---- Fields ---- */
+  let fieldRows = [];
+  if (isCI) {
+    fieldRows.push(`<tr>${FIELD('Invoice Date', d.invoiceDate)}${FIELD('Invoice Number', d.invoiceNumber)}</tr>`);
+    fieldRows.push(`<tr>${FIELD('PU REF#', d.puRef)}${FIELD('Carrier', d.carrier)}</tr>`);
+    fieldRows.push(`<tr>${FIELD('Mode of Transport', d.mode)}${FIELD('Shipping Term', d.shippingTerm)}</tr>`);
+    if (isSea) {
+      fieldRows.push(`<tr>${FIELD('Container Number', d.containerNumber)}${FIELD('Seal Number', d.sealNumber)}</tr>`);
+      fieldRows.push(`<tr>${FIELD('Consignee Type', d.consigneeType)}<td style="border:none;"></td><td style="border:none;"></td></tr>`);
+    }
+  } else {
+    fieldRows.push(`<tr>${FIELD('Date', d.invoiceDate)}${FIELD('PO Number', d.invoiceNumber)}</tr>`);
+    fieldRows.push(`<tr>${FIELD('Reference#', d.puRef)}${FIELD('Shipping Term', d.shippingTerm)}</tr>`);
+    if (isSea) fieldRows.push(`<tr>${FIELD('Container Number', d.containerNumber)}${FIELD('Seal Number', d.sealNumber)}</tr>`);
+  }
+  const fieldsTable =
+    `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">${fieldRows.join('')}</table>`;
+
+  /* ---- Line items / Pallets table ---- */
+  let itemsTable = '';
+  if (isCI) {
+    let totalPcs = 0, totalWt = 0, totalVal = 0;
+    d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
+    if (d.pallets && d.pallets.length > 0) totalWt = d.pallets.reduce((s, p) => s + (p.grossWeight || 0), 0);
+    const itemRows = d.lineItems.map(li =>
+      `<tr>
+        ${TD(`<strong>${esc(li.sku)} - ${esc(li.name)}</strong><br><span style="color:#555;font-size:7.5pt;">HS Code: ${esc(li.hsCode)} | Origin: ${esc(li.origin)}</span>`)}
+        ${TDR(li.qty.toLocaleString())}
+        ${TD('pcs')}
+        ${TDR((li.qty * li.unitWeight).toFixed(2))}
+        ${TDR(li.unitValue.toFixed(2))}
+        ${TDR((li.qty * li.unitValue).toFixed(2))}
+      </tr>`).join('');
+    itemsTable = `
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">
+        <thead><tr>${TH('Description of Goods')}${THR('No. of Items')}${TH('Measurement')}${THR('Net Weight (kg)')}${THR(`Unit Value (${curr})`)}${THR(`Total for Customs (${curr})`)}</tr></thead>
+        <tbody>${itemRows}</tbody>
+        <tfoot><tr>${TOT('TOTALS','font-size:8.5pt;')}${TOTR(totalPcs.toLocaleString()+' pcs')}${TOT('')}${TOTR(totalWt.toFixed(2)+' kg')}${TOT('')}${TOTR(totalVal.toFixed(2)+' '+curr)}</tr></tfoot>
+      </table>`;
+  } else {
+    let totalNet = 0, totalGross = 0, totalCBM = 0;
+    d.pallets.forEach(p => {
+      totalNet   += parseFloat(p.netWeight)  || 0;
+      totalGross += parseFloat(p.grossWeight) || 0;
+      totalCBM   += ((parseFloat(p.dimL)||0)*(parseFloat(p.dimW)||0)*(parseFloat(p.dimH)||0))/1000000;
+    });
+    const palletRows = d.pallets.map((p, i) =>
+      `<tr>
+        ${TD(`<strong>Pallet ${i+1}</strong>`)}
+        ${TD(`<strong>${esc(p.sku)} - ${esc(p.productName)}</strong><br><span style="color:#555;font-size:7.5pt;">HS: ${esc(p.hsCode)} | Origin: ${esc(p.origin)}</span>`)}
+        ${TDR(p.cartonQty)}
+        ${TDR(parseFloat(p.netWeight).toFixed(2))}
+        ${TDR(parseFloat(p.grossWeight).toFixed(2))}
+        ${TD(`${p.dimL} x ${p.dimW} x ${p.dimH} cm`)}
+        ${TD(esc(p.remarks))}
+      </tr>`).join('');
+    itemsTable = `
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">
+        <thead><tr>${TH('Pallet Ref#')}${TH('Product Details')}${THR('Carton Qty')}${THR('Net Weight (kgs)')}${THR('Gross Weight (kgs)')}${TH('Pallet Dimensions (cm)')}${TH('Remarks')}</tr></thead>
+        <tbody>${palletRows}</tbody>
+        <tfoot><tr>${TOT(`TOTALS — ${d.pallets.length} pallets`,'font-size:8.5pt;')}${TOT('')}${TOT('')}${TOTR(totalNet.toFixed(2)+' kg')}${TOTR(totalGross.toFixed(2)+' kg')}${TOT('')}${TOT('')}</tr></tfoot>
+      </table>`;
+  }
+
+  /* ---- Totals summary ---- */
+  let totalsBlock = '';
+  if (isCI) {
+    let totalWt = 0, totalVal = 0;
+    d.lineItems.forEach(li => { totalWt += li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
+    if (d.pallets && d.pallets.length > 0) totalWt = d.pallets.reduce((s, p) => s + (p.grossWeight || 0), 0);
+    totalsBlock = `
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+        <tr><td style="border:none;width:60%;"></td><td style="border:none;text-align:right;font-size:9pt;">Shipping Term:&nbsp;<strong>${esc(d.shippingTerm)}</strong></td></tr>
+        <tr><td style="border:none;"></td><td style="border:none;text-align:right;font-size:9pt;">Total Weight:&nbsp;<strong>${totalWt.toFixed(2)} KG</strong></td></tr>
+        <tr><td style="border:none;"></td><td style="border:none;text-align:right;font-size:10pt;font-weight:bold;border-top:2px solid #333;padding-top:2px;">Total Value (${curr}):&nbsp;${totalVal.toFixed(2)}</td></tr>
+      </table>`;
+  } else {
+    let totalGross = 0, totalCBM = 0;
+    d.pallets.forEach(p => {
+      totalGross += parseFloat(p.grossWeight) || 0;
+      totalCBM   += ((parseFloat(p.dimL)||0)*(parseFloat(p.dimW)||0)*(parseFloat(p.dimH)||0))/1000000;
+    });
+    totalsBlock = `
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+        <tr><td style="border:none;width:60%;"></td><td style="border:none;text-align:right;font-size:9pt;">Shipping Term:&nbsp;<strong>${esc(d.shippingTerm)}</strong></td></tr>
+        <tr><td style="border:none;"></td><td style="border:none;text-align:right;font-size:9pt;">Total Pallets:&nbsp;<strong>${d.pallets.length}</strong></td></tr>
+        <tr><td style="border:none;"></td><td style="border:none;text-align:right;font-size:9pt;">Total Gross Weight:&nbsp;<strong>${totalGross.toFixed(2)} KG</strong></td></tr>
+        <tr><td style="border:none;"></td><td style="border:none;text-align:right;font-size:9pt;border-top:2px solid #333;padding-top:2px;">Total CBM (m³):&nbsp;${totalCBM.toFixed(4)}</td></tr>
+      </table>`;
+  }
+
+  /* ---- Declaration ---- */
+  const declaration = isCI
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+         <tr><td style="border:1px solid #999;padding:3px 5px;font-size:8.5pt;">${esc(d.authText)} We authorize <strong>${esc(d.carrier)}</strong> as our customs clearance and delivery agent.</td></tr>
+       </table>`
+    : '';
+
+  /* ---- Remarks ---- */
+  const remarks = d.remarks
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+         <tr><td style="border:1px solid #ccc;padding:3px 5px;font-size:8.5pt;"><strong>Remarks / Special Instructions:</strong><br>${esc(d.remarks).replace(/\n/g,'<br>')}</td></tr>
+       </table>`
+    : '';
+
+  /* ---- Footer / Signature ---- */
+  let sigCell = `<td style="border:none;text-align:center;width:180px;vertical-align:bottom;">
+    <div style="margin-top:20mm;border-top:1px solid #333;padding-top:3px;font-size:9pt;">Authorized Signature</div>
+  </td>`;
+  if (includeSigStamp) {
+    const sigData   = localStorage.getItem(STORE_KEYS.signature);
+    const stampData = localStorage.getItem(STORE_KEYS.stamp);
+    const imgs = [
+      sigData   ? `<img src="${sigData}"   style="max-height:50px;max-width:120px;">` : '',
+      stampData ? `<img src="${stampData}" style="max-height:50px;max-width:80px;margin-left:8px;">` : '',
+    ].filter(Boolean).join('');
+    sigCell = `<td style="border:none;text-align:center;width:200px;vertical-align:bottom;">
+      ${imgs ? `<div style="margin-bottom:2px;">${imgs}</div>` : '<div style="margin-top:20mm;"></div>'}
+      <div style="border-top:1px solid #333;padding-top:3px;font-size:9pt;">Authorized Signature</div>
+    </td>`;
+  }
+  const footer =
+    `<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6mm;">
+       <tr>
+         <td style="border:none;font-size:9pt;vertical-align:bottom;">
+           ${isCI ? `<strong>Date Shipped:</strong> ${esc(d.invoiceDate)}<br>` : ''}
+           <strong>${esc(d.companyName)}</strong>
+         </td>
+         ${sigCell}
+       </tr>
+     </table>`;
+
+  return letterhead + titleBlock + headerTable + addrTable + fieldsTable + itemsTable + totalsBlock + declaration + remarks + footer;
+}
+
+/* ---- EXCEL (.xls via HTML) ---- */
+function exportExcel(data, which, ref) {
+  const docs = [];
+  if (which === 'ci' || which === 'both') docs.push({ name: 'Commercial_Invoice', isCI: true });
+  if (which === 'pl' || which === 'both') docs.push({ name: 'Packing_List',       isCI: false });
+
+  docs.forEach(doc => {
+    const body = buildDocBodyHTML(data, doc.isCI, false);
     const content = `
 <html xmlns:o="urn:schemas-microsoft-com:office:office"
       xmlns:x="urn:schemas-microsoft-com:office:excel"
       xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="UTF-8">
 <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>
-<x:ExcelWorksheet><x:Name>${sheet.name}</x:Name>
-<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+<x:ExcelWorksheet><x:Name>${doc.isCI ? 'Commercial Invoice' : 'Packing List'}</x:Name>
+<x:WorksheetOptions><x:Print><x:FitWidth/><x:FitHeight/></x:Print></x:WorksheetOptions>
 </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 <style>
-  td, th { font-family: Arial, sans-serif; font-size: 10pt; border: 1px solid #ccc; padding: 4px 8px; vertical-align: top; }
-  .hdr { background-color: #1a2744; color: white; font-weight: bold; }
-  .lbl { background-color: #f1f5f9; font-weight: bold; color: #334155; }
-  .total { background-color: #f1f5f9; font-weight: bold; }
-  .title { font-size: 14pt; font-weight: bold; color: #1a2744; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { vertical-align: top; }
 </style></head>
-<body>${sheet.html}</body></html>`;
-    downloadBlob(content, `${ref}_${sheet.name.replace(/ /g,'_')}.xls`, 'application/vnd.ms-excel');
+<body style="padding:8px;">${body}</body></html>`;
+    downloadBlob(content, `${ref}_${doc.name}.xls`, 'application/vnd.ms-excel');
   });
-  toast(`Excel file(s) downloaded`);
-}
-
-function buildExcelCI(d) {
-  const currency = d.currency;
-  const isSea = d.mode === 'SEA';
-  let totalPcs = 0, totalWt = 0, totalVal = 0;
-  d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
-
-  const notifyCol = (d.notify && formatAddress(d.notify).trim()) ? `<td class="lbl" style="vertical-align:top;">Notify Party</td><td style="white-space:pre-wrap;">${esc(formatAddress(d.notify))}</td>` : '';
-  const buyerLabel = isSea ? 'Sold To / Buyer' : 'Importer / Delivery Address';
-
-  const seaFields = isSea ? `
-    <tr><td class="lbl">Container Number</td><td>${esc(d.containerNumber)}</td><td class="lbl">Seal Number</td><td>${esc(d.sealNumber)}</td></tr>
-    <tr><td class="lbl">Consignee Type</td><td>${esc(d.consigneeType)}</td><td></td><td></td></tr>` : '';
-
-  const itemRows = d.lineItems.map(li => `
-    <tr>
-      <td>${esc(li.sku)} - ${esc(li.name)}<br/>HS Code: ${esc(li.hsCode)} | Origin: ${esc(li.origin)}</td>
-      <td style="text-align:right;">${li.qty.toLocaleString()}</td>
-      <td>pcs</td>
-      <td style="text-align:right;">${(li.qty * li.unitWeight).toFixed(2)}</td>
-      <td style="text-align:right;">${li.unitValue.toFixed(2)}</td>
-      <td style="text-align:right;">${(li.qty * li.unitValue).toFixed(2)}</td>
-    </tr>`).join('');
-
-  return `<table>
-    <tr><td colspan="6" class="title">COMMERCIAL INVOICE</td></tr>
-    <tr><td class="lbl">Shipper</td><td style="white-space:pre-wrap;">${esc(formatAddress(d.shipper))}</td>
-        <td class="lbl">${buyerLabel}</td><td style="white-space:pre-wrap;">${esc(formatAddress(d.buyer))}</td>
-        ${notifyCol}</tr>
-    <tr><td class="lbl">Pickup Address</td><td style="white-space:pre-wrap;">${esc(formatAddress(d.pickup))}</td>
-        <td class="lbl">Delivery Address</td><td style="white-space:pre-wrap;">${esc(formatAddress(d.delivery))}</td><td></td><td></td></tr>
-    <tr><td class="lbl">Invoice Date</td><td>${esc(d.invoiceDate)}</td>
-        <td class="lbl">Invoice Number</td><td>${esc(d.invoiceNumber)}</td><td></td><td></td></tr>
-    <tr><td class="lbl">PU REF#</td><td>${esc(d.puRef)}</td>
-        <td class="lbl">Carrier</td><td>${esc(d.carrier)}</td><td></td><td></td></tr>
-    <tr><td class="lbl">Mode of Transport</td><td>${d.mode}</td>
-        <td class="lbl">Shipping Term</td><td>${esc(d.shippingTerm)}</td><td></td><td></td></tr>
-    ${seaFields}
-    <tr><td colspan="6"></td></tr>
-    <tr>
-      <th class="hdr">Description of Goods</th>
-      <th class="hdr" style="text-align:right;">No. of Items</th>
-      <th class="hdr">Measurement</th>
-      <th class="hdr" style="text-align:right;">Net Weight (kg)</th>
-      <th class="hdr" style="text-align:right;">Unit Value (${currency})</th>
-      <th class="hdr" style="text-align:right;">Total for Customs (${currency})</th>
-    </tr>
-    ${itemRows}
-    <tr><td colspan="4" class="total">TOTALS</td>
-        <td class="total" style="text-align:right;">${totalPcs.toLocaleString()} pcs</td>
-        <td class="total" style="text-align:right;">${totalWt.toFixed(2)} kg</td>
-        <td class="total" style="text-align:right;">${totalVal.toFixed(2)} ${currency}</td></tr>
-    <tr><td colspan="6"></td></tr>
-    <tr><td colspan="6">${esc(d.authText)} We authorize ${esc(d.carrier)} as our customs clearance and delivery agent.</td></tr>
-    <tr><td class="lbl">Date Shipped</td><td>${esc(d.invoiceDate)}</td><td colspan="4">${esc(d.companyName)}</td></tr>
-  </table>`;
-}
-
-function buildExcelPL(d) {
-  const isSea = d.mode === 'SEA';
-  let totalNet = 0, totalGross = 0, totalCBM = 0;
-  d.pallets.forEach(p => {
-    totalNet += parseFloat(p.netWeight) || 0;
-    totalGross += parseFloat(p.grossWeight) || 0;
-    totalCBM += ((parseFloat(p.dimL)||0) * (parseFloat(p.dimW)||0) * (parseFloat(p.dimH)||0)) / 1000000;
-  });
-
-  const notifyCol = (d.notify && formatAddress(d.notify).trim()) ? `<td class="lbl">Notify Party</td><td style="white-space:pre-wrap;">${esc(formatAddress(d.notify))}</td>` : '';
-  const seaFields = isSea ? `
-    <tr><td class="lbl">Container Number</td><td>${esc(d.containerNumber)}</td>
-        <td class="lbl">Seal Number</td><td>${esc(d.sealNumber)}</td></tr>` : '';
-
-  const palletRows = d.pallets.map((p, i) => {
-    const cbm = ((parseFloat(p.dimL)||0)*(parseFloat(p.dimW)||0)*(parseFloat(p.dimH)||0))/1000000;
-    return `<tr>
-      <td>Pallet ${i+1}</td>
-      <td>${esc(p.sku)} - ${esc(p.productName)}<br/>HS: ${esc(p.hsCode)} | Origin: ${esc(p.origin)}</td>
-      <td style="text-align:right;">${p.cartonQty}</td>
-      <td style="text-align:right;">${parseFloat(p.netWeight).toFixed(2)}</td>
-      <td style="text-align:right;">${parseFloat(p.grossWeight).toFixed(2)}</td>
-      <td>${p.dimL} x ${p.dimW} x ${p.dimH} cm</td>
-      <td style="text-align:right;">${cbm.toFixed(3)}</td>
-      <td>${esc(p.remarks)}</td>
-    </tr>`;
-  }).join('');
-
-  return `<table>
-    <tr><td colspan="8" class="title">PACKING LIST</td></tr>
-    <tr><td class="lbl">Sender</td><td style="white-space:pre-wrap;">${esc(formatAddress(d.shipper))}</td>
-        <td class="lbl">Importer / Sold To</td><td style="white-space:pre-wrap;">${esc(formatAddress(d.buyer))}</td>
-        ${notifyCol}</tr>
-    <tr><td class="lbl">Pickup Address</td><td style="white-space:pre-wrap;">${esc(formatAddress(d.pickup))}</td>
-        <td class="lbl">Delivery Address</td><td style="white-space:pre-wrap;">${esc(formatAddress(d.delivery))}</td><td></td><td></td></tr>
-    <tr><td class="lbl">Date</td><td>${esc(d.invoiceDate)}</td>
-        <td class="lbl">PO Number</td><td>${esc(d.invoiceNumber)}</td><td></td><td></td></tr>
-    <tr><td class="lbl">Reference#</td><td>${esc(d.puRef)}</td>
-        <td class="lbl">Shipping Term</td><td>${esc(d.shippingTerm)}</td><td></td><td></td></tr>
-    ${seaFields}
-    <tr><td colspan="8"></td></tr>
-    <tr>
-      <th class="hdr">Pallet #</th>
-      <th class="hdr">Product Details</th>
-      <th class="hdr" style="text-align:right;">Carton Qty</th>
-      <th class="hdr" style="text-align:right;">Net Weight (kg)</th>
-      <th class="hdr" style="text-align:right;">Gross Weight (kg)</th>
-      <th class="hdr">Dimensions (cm)</th>
-      <th class="hdr" style="text-align:right;">CBM (m³)</th>
-      <th class="hdr">Remarks</th>
-    </tr>
-    ${palletRows}
-    <tr>
-      <td colspan="2" class="total">TOTALS</td>
-      <td></td>
-      <td class="total" style="text-align:right;">${totalNet.toFixed(2)}</td>
-      <td class="total" style="text-align:right;">${totalGross.toFixed(2)}</td>
-      <td></td>
-      <td class="total" style="text-align:right;">${totalCBM.toFixed(3)}</td>
-      <td class="total">${d.pallets.length} pallets</td>
-    </tr>
-    <tr><td colspan="8">${esc(d.companyName)}</td></tr>
-  </table>`;
+  toast('Excel file(s) downloaded');
 }
 
 /* ---- WORD (.doc via HTML) ---- */
 function exportWord(data, which, ref) {
   const docs = [];
-  if (which === 'ci' || which === 'both') docs.push({ name: 'Commercial_Invoice', html: generateCI(data) });
-  if (which === 'pl' || which === 'both') docs.push({ name: 'Packing_List',        html: generatePL(data) });
+  if (which === 'ci' || which === 'both') docs.push({ name: 'Commercial_Invoice', isCI: true });
+  if (which === 'pl' || which === 'both') docs.push({ name: 'Packing_List',       isCI: false });
 
   docs.forEach(doc => {
+    const body = buildDocBodyHTML(data, doc.isCI, true);
     const content = `
 <html xmlns:o="urn:schemas-microsoft-com:office:office"
       xmlns:w="urn:schemas-microsoft-com:office:word"
@@ -2820,33 +2912,26 @@ function exportWord(data, which, ref) {
 </w:WordDocument></xml><![endif]-->
 <style>
   @page { size: A4; margin: 1.5cm; }
-  body { font-family: Arial, sans-serif; font-size: 10pt; }
-  ${getDocCSS()}
+  body  { font-family: Arial, sans-serif; font-size: 10pt; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { vertical-align: top; }
+  img { display: block; }
 </style></head>
-<body><div class="print-doc">${doc.html}</div></body></html>`;
+<body>${body}</body></html>`;
     downloadBlob(content, `${ref}_${doc.name}.doc`, 'application/msword');
   });
-  toast(`Word file(s) downloaded`);
+  toast('Word file(s) downloaded');
 }
 
-/* ---- Helpers ---- */
+/* ---- Shared download helper ---- */
 function downloadBlob(content, filename, mimeType) {
   const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function getDocCSS() {
-  // Extract @media print styles + doc- styles for Word export
-  const styleEl = document.querySelector('style');
-  if (!styleEl) return '';
-  const css = styleEl.textContent;
-  const docStyles = css.match(/\.doc-[\s\S]*?(?=\n\n|\n\/\*|$)/g) || [];
-  return docStyles.join('\n');
 }
 
 /* ============================================================
