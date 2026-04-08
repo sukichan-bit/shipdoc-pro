@@ -10,6 +10,44 @@
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <!-- Firestore loaded via dynamic import() to support named databases -->
+
+<!-- PostgreSQL sync: mirrors localStorage to the server so all team members share data -->
+<script>
+(function () {
+  const SDG_PREFIX = 'sdg_';
+  const _setItem = localStorage.setItem.bind(localStorage);
+  const _removeItem = localStorage.removeItem.bind(localStorage);
+
+  // Intercept all localStorage.setItem calls that start with sdg_
+  localStorage.setItem = function (key, value) {
+    _setItem(key, value);
+    if (key.startsWith(SDG_PREFIX)) {
+      fetch('/api/store/' + encodeURIComponent(key), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: value
+      }).catch(() => {});
+    }
+  };
+
+  // Intercept localStorage.removeItem for sdg_ keys
+  localStorage.removeItem = function (key) {
+    _removeItem(key);
+    if (key.startsWith(SDG_PREFIX)) {
+      fetch('/api/store/' + encodeURIComponent(key), { method: 'DELETE' }).catch(() => {});
+    }
+  };
+
+  // On load: pull all data from server and populate localStorage
+  window.__dbSyncReady = fetch('/api/store')
+    .then(r => r.json())
+    .then(data => {
+      Object.entries(data).forEach(([key, value]) => _setItem(key, value));
+      console.log('[DB Sync] Loaded', Object.keys(data).length, 'keys from server');
+    })
+    .catch(err => console.warn('[DB Sync] Could not load from server:', err));
+})();
+</script>
 <style>
 /* ============================================================
    CSS RESET & BASE
