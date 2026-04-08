@@ -1,0 +1,3510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shipping Document Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<!-- Firestore loaded via dynamic import() to support named databases -->
+<style>
+/* ============================================================
+   CSS RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --blue:        #2563EB;
+  --blue-light:  #3B82F6;
+  --blue-dark:   #1D4ED8;
+  --orange:      #EA580C;
+  --orange-light:#F97316;
+  --indigo:      #6366F1;
+  --green:       #10B981;
+  --red:         #DC2626;
+  --amber:       #D97706;
+  --navy-glass:  rgba(8, 15, 40, 0.78);
+  --glass-card:  rgba(255,255,255,0.82);
+  --glass-border:rgba(255,255,255,0.55);
+  --bg:          #F0F4FF;
+  --white:       #ffffff;
+  --gray-50:     #F8FAFC;
+  --gray-100:    #F1F5F9;
+  --gray-200:    #E2E8F0;
+  --gray-300:    #CBD5E1;
+  --gray-400:    #94A3B8;
+  --gray-500:    #64748B;
+  --gray-600:    #475569;
+  --gray-700:    #334155;
+  --gray-800:    #1E293B;
+  /* Legacy aliases so inline JS HTML keeps working */
+  --ink:         #1E293B;
+  --ink-mid:     #334155;
+  --warm-50:     #F8FAFC;
+  --warm-100:    #F1F5F9;
+  --warm-200:    #E2E8F0;
+  --warm-300:    #CBD5E1;
+  --warm-400:    #94A3B8;
+  --warm-500:    #64748B;
+  --warm-600:    #475569;
+  --orange-dim:  rgba(234,88,12,0.1);
+  --blue-glow:   rgba(37,99,235,0.12);
+  --blue-dim:    rgba(37,99,235,0.08);
+  --green-dim:   rgba(16,185,129,0.1);
+  --green-light: rgba(16,185,129,0.1);
+  --amber-dim:   rgba(217,119,6,0.1);
+  --amber-light: rgba(217,119,6,0.1);
+  --red-dim:     rgba(220,38,38,0.1);
+  --red-light:   rgba(220,38,38,0.1);
+  --navy:        #1E293B;
+  --navy-light:  #1D4ED8;
+  --navy-mid:    #334155;
+  --blue-dark:   #1D4ED8;
+  --accent:      #EA580C;
+  --accent-light:#F97316;
+  --sidebar-w:   252px;
+  --header-h:    62px;
+  --radius:      12px;
+  --radius-lg:   16px;
+  --shadow-sm:   0 1px 2px rgba(0,0,0,0.06);
+  --shadow:      0 4px 24px rgba(37,99,235,0.07), 0 1px 4px rgba(0,0,0,0.05);
+  --shadow-md:   0 8px 32px rgba(37,99,235,0.10), 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-lg:   0 16px 48px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-glass:0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-card: 0 4px 24px rgba(37,99,235,0.07), 0 1px 4px rgba(0,0,0,0.05);
+  --transition:  200ms cubic-bezier(0.16,1,0.3,1);
+  --ease:        cubic-bezier(0.16,1,0.3,1);
+}
+
+html { font-size: 14px; }
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--gray-800); line-height: 1.55; min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 50% at 15% 10%, rgba(37,99,235,0.13) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 60% at 85% 80%, rgba(99,102,241,0.11) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 60% 20%, rgba(16,185,129,0.07) 0%, transparent 70%),
+    #EEF2FF;
+}
+.app { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+a { color: var(--blue); text-decoration: none; }
+button { cursor: pointer; font-family: inherit; font-size: inherit; }
+input, select, textarea { font-family: inherit; font-size: inherit; }
+table { border-collapse: collapse; width: 100%; }
+
+/* ============================================================
+   LAYOUT — sidebar + main
+   ============================================================ */
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--navy-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid rgba(255,255,255,0.07);
+  box-shadow: 4px 0 30px rgba(0,0,0,0.18);
+  color: var(--white);
+  display: flex; flex-direction: column; position: fixed; top: 0; left: 0;
+  height: 100vh; z-index: 100;
+}
+.sidebar-brand {
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex; align-items: center; gap: 12px;
+}
+.sidebar-brand-icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--blue) 0%, var(--indigo) 100%);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 14px rgba(37,99,235,0.45);
+  clip-path: none;
+}
+.sidebar-brand-icon svg { width: 18px; height: 18px; color: white; }
+.sidebar-brand-text { display: flex; flex-direction: column; }
+.sidebar-brand-text strong { font-size: .97rem; font-weight: 800; letter-spacing: -.01em; color: white; font-family: inherit; }
+.sidebar-brand-text span { font-size: .68rem; color: rgba(255,255,255,0.38); text-transform: uppercase; letter-spacing: .08em; font-family: inherit; }
+
+.sidebar-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 1px; overflow-y: auto; }
+.sidebar-nav-group {
+  font-size: .65rem; font-weight: 700; color: rgba(255,255,255,0.25);
+  text-transform: uppercase; letter-spacing: .1em; padding: 14px 10px 4px;
+  font-family: inherit;
+}
+.sidebar-nav button {
+  width: 100%; background: none; border: none; color: rgba(255,255,255,0.55);
+  padding: 9px 12px; text-align: left; display: flex; align-items: center; gap: 11px;
+  font-family: inherit; font-size: .88rem; font-weight: 500; border-radius: 9px;
+  cursor: pointer; transition: all var(--transition); position: relative;
+}
+.sidebar-nav button:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
+.sidebar-nav button.active {
+  background: linear-gradient(135deg, rgba(37,99,235,0.3), rgba(99,102,241,0.22));
+  color: white; font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+}
+.sidebar-nav button.active::before { display: none; }
+.sidebar-nav button svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .75; }
+.sidebar-nav button.active svg { opacity: 1; }
+
+.sidebar-footer {
+  padding: 14px 20px; border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: .72rem; color: rgba(255,255,255,0.25); font-family: inherit;
+}
+
+/* Main content */
+.main { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
+.main-header {
+  height: var(--header-h);
+  background: rgba(240,244,255,0.75);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(37,99,235,0.08);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px; position: sticky; top: 0; z-index: 50;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 4px 16px rgba(37,99,235,0.05);
+}
+.main-header h1 { font-size: 1.08rem; font-weight: 800; color: var(--gray-800); letter-spacing: -.02em; }
+.header-badge {
+  font-size: .72rem; font-weight: 700; color: var(--blue);
+  background: rgba(37,99,235,0.1); padding: 4px 12px; border-radius: 99px;
+  border: 1px solid rgba(37,99,235,0.15); letter-spacing: .03em;
+}
+.main-body { padding: 28px 32px 56px; max-width: 1240px; }
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.card {
+  background: var(--glass-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  margin-bottom: 20px;
+  transition: box-shadow var(--transition);
+}
+@keyframes cardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.card:hover { box-shadow: var(--shadow-md); }
+.card-header {
+  padding: 18px 24px; border-bottom: 1px solid rgba(0,0,0,0.05);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-header h2 { font-size: 1rem; font-weight: 800; color: var(--gray-800); letter-spacing: -.02em; }
+.card-body { padding: 24px; }
+
+/* ============================================================
+   FORMS
+   ============================================================ */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: .72rem; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .07em; }
+.form-group input, .form-group select, .form-group textarea {
+  padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: 9px;
+  font-family: inherit; font-size: .9rem; color: var(--gray-800);
+  background: rgba(255,255,255,0.7); transition: all var(--transition);
+}
+.form-group input:hover, .form-group select:hover { border-color: var(--gray-300); background: rgba(255,255,255,0.9); }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none; border-color: var(--blue); background: white;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+}
+.form-group input::placeholder { color: var(--gray-400); }
+.form-group input[readonly] { background: var(--gray-100); color: var(--gray-500); cursor: default; }
+.form-group textarea { resize: vertical; min-height: 64px; }
+.form-group.invalid input, .form-group.invalid select { border-color: var(--red); }
+.form-group .error-msg { font-size: .78rem; color: var(--red); }
+.form-group.full { grid-column: 1 / -1; }
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px;
+  border-radius: 9px; font-family: inherit; font-weight: 700; border: none;
+  transition: all var(--transition); font-size: .88rem; white-space: nowrap; letter-spacing: -.01em;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary {
+  background: linear-gradient(135deg, var(--orange) 0%, var(--orange-light) 100%);
+  color: white; box-shadow: 0 3px 12px rgba(234,88,12,0.35);
+}
+.btn-primary:hover { box-shadow: 0 6px 20px rgba(234,88,12,0.45); filter: brightness(1.05); }
+.btn-secondary {
+  background: rgba(255,255,255,0.8); color: var(--gray-700);
+  border: 1.5px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.btn-secondary:hover { background: white; border-color: var(--gray-300); }
+.btn-danger { background: linear-gradient(135deg, #EF4444, var(--red)); color: white; box-shadow: 0 2px 8px rgba(220,38,38,0.3); }
+.btn-danger:hover { filter: brightness(1.05); }
+.btn-success { background: linear-gradient(135deg, #059669, var(--green)); color: white; box-shadow: 0 3px 12px rgba(16,185,129,0.3); }
+.btn-success:hover { filter: brightness(1.05); }
+.btn-outline { background: rgba(255,255,255,0.8); border: 1.5px solid var(--gray-200); color: var(--gray-600); }
+.btn-outline:hover { background: white; border-color: var(--gray-300); }
+.btn-sm { padding: 5px 12px; font-size: .8rem; border-radius: 7px; }
+.btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ============================================================
+   MODE / FORMAT TOGGLE
+   ============================================================ */
+.mode-toggle {
+  display: inline-flex; background: rgba(0,0,0,0.05);
+  border-radius: 10px; padding: 3px; gap: 2px;
+  border: 1.5px solid rgba(0,0,0,0.06);
+}
+.mode-toggle button {
+  padding: 7px 22px; border: none; border-radius: 8px; font-family: inherit;
+  font-size: .88rem; font-weight: 700; background: transparent;
+  color: var(--gray-500); transition: all var(--transition);
+}
+.mode-toggle button.active {
+  background: white; color: var(--gray-800);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+}
+
+/* ============================================================
+   TABLES
+   ============================================================ */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  background: rgba(37,99,235,0.04); font-size: .72rem; font-weight: 700;
+  color: var(--gray-500); text-transform: uppercase; letter-spacing: .07em;
+  padding: 10px 14px; text-align: left; border-bottom: 1.5px solid rgba(37,99,235,0.08);
+}
+.data-table td { padding: 11px 14px; border-bottom: 1px solid rgba(0,0,0,0.04); font-size: .88rem; vertical-align: middle; }
+.data-table tbody tr { transition: background var(--transition); }
+.data-table tbody tr:hover td { background: rgba(37,99,235,0.03); }
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table .actions { display: flex; gap: 6px; }
+
+/* ============================================================
+   TAG BADGES
+   ============================================================ */
+.tag { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: .72rem; font-weight: 700; letter-spacing: .03em; }
+.tag-shipper  { background: rgba(37,99,235,0.1);  color: #1D4ED8; }
+.tag-buyer    { background: rgba(234,88,12,0.1);  color: #C2410C; }
+.tag-notify   { background: rgba(217,119,6,0.1);  color: #B45309; }
+.tag-pickup   { background: rgba(16,185,129,0.1); color: #047857; }
+.tag-delivery { background: rgba(99,102,241,0.1); color: #4338CA; }
+.tag-draft     { background: rgba(100,116,139,0.1); color: #475569; }
+.tag-submitted { background: rgba(37,99,235,0.1);  color: #1D4ED8; }
+.tag-cleared   { background: rgba(217,119,6,0.1);  color: #B45309; }
+.tag-delivered { background: rgba(16,185,129,0.1); color: #047857; }
+
+/* ============================================================
+   VALIDATION BANNERS
+   ============================================================ */
+.validation-banner {
+  border-radius: var(--radius); padding: 13px 16px; margin-bottom: 16px;
+  font-size: .87rem; display: flex; flex-direction: column; gap: 6px;
+}
+.validation-banner.warn { background: rgba(217,119,6,0.08); border: 1.5px solid rgba(217,119,6,0.25); }
+.validation-banner.error { background: rgba(220,38,38,0.07); border: 1.5px solid rgba(220,38,38,0.22); }
+.validation-banner .banner-title { font-weight: 700; display: flex; align-items: center; gap: 7px; }
+.validation-banner ul { margin: 2px 0 0 20px; }
+.validation-banner li { margin-bottom: 3px; }
+
+/* ============================================================
+   SEARCH BOX
+   ============================================================ */
+.search-box { position: relative; display: flex; align-items: center; }
+.search-box input {
+  width: 100%; padding: 9px 13px 9px 38px; border: 1.5px solid var(--gray-200);
+  border-radius: 9px; font-size: .88rem; background: rgba(255,255,255,0.7);
+  transition: all var(--transition);
+}
+.search-box input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); background: white; }
+.search-box svg { position: absolute; left: 11px; color: var(--gray-400); width: 16px; height: 16px; pointer-events: none; }
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,60,0.5);
+  backdrop-filter: blur(6px); z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: fadeIn 180ms ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  background: white; border-radius: var(--radius-lg);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.1);
+  width: 100%; max-width: 620px; max-height: 90vh; overflow-y: auto;
+  border: 1px solid var(--gray-200);
+  animation: slideUp 250ms cubic-bezier(.16,1,.3,1);
+}
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.modal-header {
+  padding: 20px 24px; border-bottom: 1px solid var(--gray-100);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.modal-header h3 { font-size: 1.02rem; font-weight: 800; color: var(--gray-800); }
+.modal-close {
+  width: 28px; height: 28px; border-radius: 8px; background: var(--gray-100);
+  border: none; font-size: 1rem; display: flex; align-items: center; justify-content: center;
+  color: var(--gray-500); transition: all var(--transition);
+}
+.modal-close:hover { background: var(--gray-200); color: var(--gray-800); }
+.modal-body { padding: 24px; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid var(--gray-100); display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ============================================================
+   CHECKBOX GROUP
+   ============================================================ */
+.checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; }
+.checkbox-group label { display: flex; align-items: center; gap: 7px; font-size: .88rem; cursor: pointer; color: var(--gray-700); }
+.checkbox-group input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--blue); border-radius: 4px; }
+
+/* ============================================================
+   STATS CARDS
+   ============================================================ */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; margin-bottom: 26px; }
+.stat-card {
+  background: var(--glass-card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 22px 24px;
+  position: relative; overflow: hidden;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.stat-card:nth-child(1) { }
+.stat-card:nth-child(2) { }
+.stat-card:nth-child(3) { }
+.stat-card:nth-child(4) { }
+.stat-card:hover { transform: translateY(-3px); box-shadow: 0 12px 36px rgba(37,99,235,0.12); }
+/* Remove old stripe, add colored top bar */
+.stat-card::after { display: none; }
+.stat-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.stat-card.s-orange::before { background: linear-gradient(90deg, var(--orange), var(--orange-light)); }
+.stat-card.s-blue::before   { background: linear-gradient(90deg, var(--blue), var(--blue-light)); }
+.stat-card.s-green::before  { background: linear-gradient(90deg, var(--green), #34D399); }
+.stat-card.s-amber::before  { background: linear-gradient(90deg, var(--amber), #F59E0B); }
+/* Show stat-icon again */
+.stat-card .stat-icon { display: flex; width: 38px; height: 38px; border-radius: 11px; align-items: center; justify-content: center; margin-bottom: 14px; }
+.stat-card.s-orange .stat-icon { background: rgba(234,88,12,0.1); }
+.stat-card.s-blue   .stat-icon { background: rgba(37,99,235,0.1); }
+.stat-card.s-green  .stat-icon { background: rgba(16,185,129,0.1); }
+.stat-card.s-amber  .stat-icon { background: rgba(217,119,6,0.1); }
+.stat-card .stat-icon svg { width: 19px; height: 19px; }
+.stat-card .stat-label { font-size: .72rem; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 0; }
+.stat-card .stat-value { font-size: 2.1rem; font-weight: 800; color: var(--gray-800); letter-spacing: -.04em; line-height: 1; margin-top: 6px; font-family: inherit; }
+.stat-card .stat-sub { font-size: .75rem; color: var(--gray-400); margin-top: 6px; }
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+.empty-state { text-align: center; padding: 52px 20px; color: var(--gray-400); }
+.empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: .4; }
+.empty-state p { font-size: .93rem; color: var(--gray-500); }
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+.toast-container { position: fixed; top: 24px; right: 24px; z-index: 2000; display: flex; flex-direction: column; gap: 10px; }
+.toast {
+  padding: 13px 18px; border-radius: 12px; color: white; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2); font-size: .88rem; min-width: 260px;
+  display: flex; align-items: center; gap: 10px;
+  animation: toastIn 280ms cubic-bezier(.4,0,.2,1), toastOut 280ms ease 2720ms forwards;
+}
+.toast::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.6); flex-shrink: 0; }
+.toast-success { background: linear-gradient(135deg, #059669, #10B981); box-shadow: 0 8px 24px rgba(16,185,129,0.35); }
+.toast-error   { background: linear-gradient(135deg, #DC2626, #EF4444); box-shadow: 0 8px 24px rgba(220,38,38,0.35); }
+.toast-info    { background: linear-gradient(135deg, var(--blue), var(--blue-light)); box-shadow: 0 8px 24px rgba(37,99,235,0.35); }
+@keyframes toastIn { from { opacity: 0; transform: translateX(50px) scale(.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
+@keyframes toastOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.95) translateY(-6px); } }
+
+/* ============================================================
+   PALLET CARD
+   ============================================================ */
+.pallet-card {
+  background: rgba(255,255,255,0.7); border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-lg); margin-bottom: 14px;
+  transition: box-shadow var(--transition);
+}
+.pallet-card:hover { box-shadow: 0 6px 20px rgba(37,99,235,0.09); }
+.pallet-card-header {
+  padding: 12px 20px; background: rgba(37,99,235,0.03);
+  border-bottom: 1px solid rgba(37,99,235,0.07);
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+  display: flex; align-items: center; justify-content: space-between;
+  font-weight: 800; color: var(--gray-800); font-size: .9rem;
+}
+.pallet-card-body { padding: 18px; }
+.pallet-card .form-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+
+/* ============================================================
+   LETTERHEAD UPLOAD
+   ============================================================ */
+.letterhead-preview {
+  border: 2px dashed var(--gray-300); border-radius: var(--radius-lg); padding: 24px;
+  text-align: center; cursor: pointer; transition: all var(--transition); min-height: 130px;
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px;
+  background: rgba(255,255,255,0.5);
+}
+.letterhead-preview:hover { border-color: var(--blue); background: rgba(37,99,235,0.04); }
+.letterhead-preview img { max-width: 100%; max-height: 150px; object-fit: contain; }
+
+/* ============================================================
+   VISIBILITY
+   ============================================================ */
+.hidden { display: none !important; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ============================================================
+   SHIPMENT SECTION TABS
+   ============================================================ */
+.section-tabs {
+  display: flex; gap: 4px; margin-bottom: 22px;
+  background: rgba(255,255,255,0.7); backdrop-filter: blur(8px);
+  border-radius: var(--radius-lg); padding: 5px;
+  border: 1.5px solid var(--glass-border);
+  box-shadow: var(--shadow-card);
+}
+.section-tabs button {
+  padding: 9px 22px; border: none; background: none; font-family: inherit;
+  font-weight: 700; color: var(--gray-500); border-radius: 10px;
+  cursor: pointer; transition: all var(--transition); font-size: .87rem; flex: 1;
+  border-bottom: none; margin-bottom: 0;
+}
+.section-tabs button:hover { color: var(--gray-700); background: rgba(255,255,255,0.6); }
+.section-tabs button.active {
+  background: linear-gradient(135deg, var(--orange), var(--orange-light));
+  color: white; box-shadow: 0 3px 10px rgba(234,88,12,0.3);
+  border-bottom-color: transparent;
+}
+
+/* ============================================================
+   PRODUCT SEARCH DROPDOWN
+   ============================================================ */
+.product-search-wrapper { position: relative; }
+.product-search-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white;
+  border: 1.5px solid var(--gray-200); border-radius: 10px; max-height: 220px;
+  overflow-y: auto; z-index: 50; box-shadow: 0 8px 24px rgba(37,99,235,0.1); display: none;
+}
+.product-search-dropdown.open { display: block; }
+.product-search-dropdown .option {
+  padding: 9px 14px; cursor: pointer; font-size: .87rem; border-bottom: 1px solid var(--gray-100);
+  transition: background var(--transition);
+}
+.product-search-dropdown .option:hover { background: rgba(37,99,235,0.05); }
+.product-search-dropdown .option:last-child { border-bottom: none; }
+.product-search-dropdown .option .sku { font-weight: 700; color: var(--blue); }
+.product-search-dropdown .option .name { margin-left: 8px; color: var(--gray-500); }
+
+/* ============================================================
+   QUICK START CARDS (dashboard)
+   ============================================================ */
+.quick-start-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.quick-start-card {
+  background: rgba(255,255,255,0.7); border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-lg); padding: 20px;
+  cursor: pointer; transition: all var(--transition);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.quick-start-card:hover {
+  border-color: rgba(37,99,235,0.25); background: rgba(255,255,255,0.9);
+  transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,0.1);
+}
+.quick-start-card .qs-icon {
+  width: 40px; height: 40px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(37,99,235,0.1) !important;
+  transition: background 200ms ease;
+}
+.quick-start-card:hover .qs-icon { background: rgba(234,88,12,0.1) !important; }
+.quick-start-card .qs-icon svg { width: 20px; height: 20px; stroke: var(--blue) !important; }
+.quick-start-card:hover .qs-icon svg { stroke: var(--orange) !important; }
+.quick-start-card strong { font-size: .92rem; font-weight: 800; color: var(--gray-800); }
+.quick-start-card span { font-size: .78rem; color: var(--gray-500); line-height: 1.4; }
+
+/* ============================================================
+   PRINT STYLES — Commercial Invoice & Packing List
+   ============================================================ */
+@media print {
+  @page { size: A4; margin: 1.2cm 1.5cm; }
+
+  body { background: white !important; font-size: 9.5pt !important; }
+  .sidebar, .main-header, .no-print { display: none !important; }
+  .main { margin-left: 0 !important; }
+  .main-body { padding: 0 !important; max-width: none !important; }
+  .print-page {
+    page-break-after: always; break-after: page;
+    padding: 0; width: 100%; max-width: none;
+  }
+  .print-page:last-child { page-break-after: auto; break-after: auto; }
+  .print-doc { display: block !important; }
+  .page { display: none !important; }
+  .page#page-print { display: block !important; }
+
+  .doc-letterhead { text-align: center; margin-bottom: 4mm; }
+  .doc-letterhead img { max-height: 55px; max-width: 100%; }
+  .doc-title { text-align: center; font-size: 13pt; font-weight: 700; margin: 3mm 0; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 2mm; }
+  .doc-header-grid { display: grid; gap: 2.5mm; margin-bottom: 3mm; }
+  .doc-header-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .doc-header-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .doc-header-grid.cols-1 { grid-template-columns: 1fr; }
+  .doc-header-box { border: 1px solid #999; padding: 2mm 3mm; font-size: 8.5pt; line-height: 1.4; }
+  .doc-header-box .box-label { font-weight: 700; font-size: 8pt; text-transform: uppercase; margin-bottom: 1mm; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 1mm; }
+  .doc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 8mm; margin-bottom: 3mm; font-size: 9pt; }
+  .doc-fields .field { display: flex; gap: 2mm; }
+  .doc-fields .field-label { font-weight: 700; white-space: nowrap; min-width: 100px; }
+  .doc-table { width: 100%; border-collapse: collapse; margin-bottom: 3mm; font-size: 8.5pt; }
+  .doc-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; border: 1px solid #999; padding: 1.5mm 2.5mm; text-align: left; font-size: 8pt; }
+  .doc-table td { border: 1px solid #999; padding: 1.5mm 2.5mm; vertical-align: top; }
+  .doc-table .text-right { text-align: right; }
+  .doc-table .total-row td { font-weight: 700; background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .doc-totals { margin-bottom: 3mm; font-size: 9pt; break-inside: avoid; }
+  .doc-totals .total-line { display: flex; justify-content: flex-end; gap: 4mm; padding: 0.5mm 0; }
+  .doc-totals .total-line.grand { font-weight: 700; font-size: 10pt; border-top: 2px solid #333; padding-top: 2mm; margin-top: 1mm; }
+  .doc-declaration { font-size: 8.5pt; border: 1px solid #999; padding: 2.5mm; margin: 3mm 0; line-height: 1.4; break-inside: avoid; }
+  .doc-footer { display: flex; justify-content: space-between; margin-top: 4mm; font-size: 9pt; break-inside: avoid; break-before: avoid; }
+  .doc-footer .signature-line { border-top: 1px solid #333; padding-top: 2mm; min-width: 150px; text-align: center; margin-top: 10mm; }
+  .doc-goods-desc { font-size: 8pt; line-height: 1.4; }
+  .doc-goods-desc .sku { font-weight: 700; }
+  .doc-goods-desc .detail { color: #555; }
+  .doc-pallet-remarks { white-space: pre-line; font-size: 8pt; }
+}
+
+/* On-screen preview of print docs */
+.print-preview-container { display: none; }
+.print-preview-container.visible { display: block; }
+.print-page-preview {
+  background: white; box-shadow: var(--shadow-lg); margin: 20px auto; padding: 15mm;
+  max-width: 210mm; font-size: 10pt; border: 1px solid var(--gray-200);
+}
+.print-page-preview .doc-letterhead { text-align: center; margin-bottom: 6mm; }
+.print-page-preview .doc-letterhead img { max-height: 60px; max-width: 100%; }
+.print-page-preview .doc-title { text-align: center; font-size: 14pt; font-weight: 700; margin: 4mm 0; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 3mm; }
+.print-page-preview .doc-header-grid { display: grid; gap: 3mm; margin-bottom: 4mm; }
+.print-page-preview .doc-header-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.print-page-preview .doc-header-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+.print-page-preview .doc-header-grid.cols-1 { grid-template-columns: 1fr; }
+.print-page-preview .doc-header-box { border: 1px solid #999; padding: 2mm 3mm; font-size: 8.5pt; line-height: 1.4; }
+.print-page-preview .doc-header-box .box-label { font-weight: 700; font-size: 8pt; text-transform: uppercase; margin-bottom: 1mm; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 1mm; }
+.print-page-preview .doc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 8mm; margin-bottom: 4mm; font-size: 9pt; }
+.print-page-preview .doc-fields .field { display: flex; gap: 2mm; }
+.print-page-preview .doc-fields .field-label { font-weight: 700; white-space: nowrap; min-width: 100px; }
+.print-page-preview .doc-table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; font-size: 8.5pt; }
+.print-page-preview .doc-table th { background: #eee; font-weight: 700; border: 1px solid #999; padding: 2mm 2.5mm; text-align: left; font-size: 8pt; }
+.print-page-preview .doc-table td { border: 1px solid #999; padding: 2mm 2.5mm; vertical-align: top; }
+.print-page-preview .doc-table .text-right { text-align: right; }
+.print-page-preview .doc-table .total-row td { font-weight: 700; background: #f5f5f5; }
+.print-page-preview .doc-totals { margin-bottom: 4mm; font-size: 9pt; }
+.print-page-preview .doc-totals .total-line { display: flex; justify-content: flex-end; gap: 4mm; padding: 1mm 0; }
+.print-page-preview .doc-totals .total-line.grand { font-weight: 700; font-size: 10pt; border-top: 2px solid #333; padding-top: 2mm; margin-top: 1mm; }
+.print-page-preview .doc-declaration { font-size: 8.5pt; border: 1px solid #999; padding: 3mm; margin: 4mm 0; line-height: 1.5; }
+.print-page-preview .doc-footer { display: flex; justify-content: space-between; margin-top: 6mm; font-size: 9pt; }
+.print-page-preview .doc-footer .signature-line { border-top: 1px solid #333; padding-top: 2mm; min-width: 150px; text-align: center; margin-top: 15mm; }
+.print-page-preview .doc-goods-desc { font-size: 8pt; line-height: 1.4; }
+.print-page-preview .doc-goods-desc .sku { font-weight: 700; }
+.print-page-preview .doc-goods-desc .detail { color: #555; }
+.print-page-preview .doc-pallet-remarks { white-space: pre-line; font-size: 8pt; }
+
+/* Shipment section tabs (active) — see main SHIPMENT SECTION TABS block above */
+
+/* Product search dropdown — see main PRODUCT SEARCH DROPDOWN block above */
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="app">
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar no-print">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      </div>
+      <div class="sidebar-brand-text">
+        <strong>ShipDoc Pro</strong>
+        <span>Document Generator</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-group">Main</div>
+      <button class="active" data-page="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
+      <button data-page="shipment">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        New Shipment
+      </button>
+      <div class="sidebar-nav-group">Data</div>
+      <button data-page="addresses">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        Address Book
+      </button>
+      <button data-page="products">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        Product Catalog
+      </button>
+      <button data-page="history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        History
+      </button>
+      <div class="sidebar-nav-group">System</div>
+      <button data-page="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
+    </nav>
+    <div class="sidebar-footer">v1.0 · All data stored locally</div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <div class="main">
+    <header class="main-header no-print">
+      <h1 id="pageTitle">Dashboard</h1>
+      <span class="header-badge">ShipDoc Pro</span>
+    </header>
+    <div class="main-body">
+
+      <!-- ========== DASHBOARD ========== -->
+      <div class="page active" id="page-dashboard">
+        <div class="stats-row">
+          <div class="stat-card s-orange">
+            <div class="stat-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="stat-label">Total Shipments</div>
+            <div class="stat-value" id="statShipments">0</div>
+            <div class="stat-sub">all time</div>
+          </div>
+          <div class="stat-card s-blue">
+            <div class="stat-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div class="stat-label">Addresses Saved</div>
+            <div class="stat-value" id="statAddresses">0</div>
+            <div class="stat-sub">in address book</div>
+          </div>
+          <div class="stat-card s-green">
+            <div class="stat-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            </div>
+            <div class="stat-label">Products</div>
+            <div class="stat-value" id="statProducts">0</div>
+            <div class="stat-sub">in catalog</div>
+          </div>
+          <div class="stat-card s-amber">
+            <div class="stat-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div class="stat-label">This Month</div>
+            <div class="stat-value" id="statMonth">0</div>
+            <div class="stat-sub">shipments</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>Recent Shipments</h2></div>
+          <div class="card-body" id="dashboardRecent">
+            <div class="empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <p>No shipments yet. Create your first shipment to get started.</p>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>Quick Start</h2></div>
+          <div class="card-body">
+            <div class="quick-start-grid">
+              <div class="quick-start-card" onclick="navigateTo('shipment')">
+                <div class="qs-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </div>
+                <strong>New Shipment</strong>
+                <span>Create a CI + PL for a new shipment</span>
+              </div>
+              <div class="quick-start-card" onclick="navigateTo('addresses')">
+                <div class="qs-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                </div>
+                <strong>Address Book</strong>
+                <span>Manage shipper & consignee addresses</span>
+              </div>
+              <div class="quick-start-card" onclick="navigateTo('products')">
+                <div class="qs-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                </div>
+                <strong>Product Catalog</strong>
+                <span>Add SKUs, HS codes & weights</span>
+              </div>
+              <div class="quick-start-card" onclick="navigateTo('settings')">
+                <div class="qs-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                </div>
+                <strong>Upload Letterhead</strong>
+                <span>Add company logo to documents</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== NEW SHIPMENT ========== -->
+      <div class="page" id="page-shipment">
+        <div class="section-tabs no-print">
+          <button class="active" data-tab="tab-details" onclick="switchShipmentTab(this)">Shipment Details</button>
+          <button data-tab="tab-items" onclick="switchShipmentTab(this)">Line Items (CI)</button>
+          <button data-tab="tab-pallets" onclick="switchShipmentTab(this)">Pallet Details (PL)</button>
+          <button data-tab="tab-preview" onclick="switchShipmentTab(this)">Preview & Print</button>
+        </div>
+
+        <!-- Tab: Shipment Details -->
+        <div class="shipment-tab active" id="tab-details">
+          <div class="card">
+            <div class="card-header">
+              <h2>Transport Mode</h2>
+            </div>
+            <div class="card-body">
+              <div class="mode-toggle" id="modeToggle">
+                <button class="active" onclick="setMode('SEA')">SEA</button>
+                <button onclick="setMode('AIR')">AIR</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h2>Addresses</h2></div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Shipper</label>
+                  <select id="shipperSelect" onchange="onAddressSelect(this, 'shipper')">
+                    <option value="">-- Select Shipper --</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Buyer / Importer</label>
+                  <select id="buyerSelect" onchange="onAddressSelect(this, 'buyer')">
+                    <option value="">-- Select Buyer --</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Notify Party (optional)</label>
+                  <select id="notifySelect" onchange="onAddressSelect(this, 'notify')">
+                    <option value="">-- Select Notify Party --</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Pickup Address</label>
+                  <select id="pickupSelect" onchange="onAddressSelect(this, 'pickup')">
+                    <option value="">-- Select Pickup Address --</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Delivery Address</label>
+                  <select id="deliverySelect" onchange="onAddressSelect(this, 'delivery')">
+                    <option value="">-- Select Delivery Address --</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h2>Shipment Information</h2></div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Invoice Date</label>
+                  <input type="date" id="invoiceDate">
+                </div>
+                <div class="form-group">
+                  <label>Invoice Number</label>
+                  <input type="text" id="invoiceNumber" placeholder="e.g. INV-2026-001">
+                </div>
+                <div class="form-group">
+                  <label>PU REF#</label>
+                  <input type="text" id="puRef" placeholder="Purchase/reference number">
+                </div>
+                <div class="form-group">
+                  <label>Carrier</label>
+                  <input type="text" id="carrier" value="Unique Logistics">
+                </div>
+                <div class="form-group sea-only">
+                  <label>Container Number</label>
+                  <input type="text" id="containerNumber" placeholder="e.g. MSKU1234567">
+                </div>
+                <div class="form-group sea-only">
+                  <label>Seal Number</label>
+                  <input type="text" id="sealNumber" placeholder="e.g. SL12345">
+                </div>
+                <div class="form-group sea-only">
+                  <label>Consignee Type</label>
+                  <input type="text" id="consigneeType" value="DIRECT CONSUMER">
+                </div>
+                <div class="form-group">
+                  <label>Shipping Term</label>
+                  <select id="shippingTerm">
+                    <option value="Ex Work">Ex Work (EXW)</option>
+                    <option value="FOB">FOB</option>
+                    <option value="CIF">CIF</option>
+                    <option value="DAP" selected>DAP / Delivered At Place</option>
+                    <option value="DDP">DDP / Delivered Duty Paid</option>
+                    <option value="FCA">FCA</option>
+                    <option value="CPT">CPT</option>
+                    <option value="CIP">CIP</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Currency</label>
+                  <select id="currency">
+                    <option value="USD" selected>USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <option value="HKD">HKD</option>
+                    <option value="CNY">CNY</option>
+                    <option value="JPY">JPY</option>
+                    <option value="SGD">SGD</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h2>Remarks / Special Instructions</h2></div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Remarks (printed on both CI and PL)</label>
+                <textarea id="shipmentRemarks" rows="3" placeholder="e.g. Handle with care. Keep dry. Temperature controlled.&#10;All items are new and unused."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Line Items -->
+        <div class="shipment-tab" id="tab-items">
+          <div class="card">
+            <div class="card-header">
+              <h2>Line Items (Commercial Invoice)</h2>
+              <div class="btn-group">
+                <div class="product-search-wrapper">
+                  <input type="text" id="lineItemSearch" placeholder="Search SKU or product name..." style="padding:8px 12px; border:1px solid var(--gray-300); border-radius:6px; width:280px;" oninput="searchProductForLine(this.value)" onfocus="searchProductForLine(this.value)">
+                  <div class="product-search-dropdown" id="lineItemDropdown"></div>
+                </div>
+              </div>
+            </div>
+            <div class="card-body" style="overflow-x:auto;">
+              <table class="data-table" id="lineItemsTable">
+                <thead>
+                  <tr>
+                    <th style="width:30%">Description of Goods</th>
+                    <th style="width:12%">Quantity</th>
+                    <th style="width:10%">Unit</th>
+                    <th style="width:13%">Net Weight (kg)</th>
+                    <th style="width:13%">Unit Value</th>
+                    <th style="width:14%">Total Customs</th>
+                    <th style="width:8%"></th>
+                  </tr>
+                </thead>
+                <tbody id="lineItemsBody"></tbody>
+                <tfoot>
+                  <tr style="font-weight:700; background:var(--gray-50);">
+                    <td colspan="2" style="text-align:right; padding:10px 12px;">TOTALS:</td>
+                    <td id="totalPcs" style="padding:10px 12px;">0 pcs</td>
+                    <td id="totalWeight" style="padding:10px 12px;">0.00 kg</td>
+                    <td style="padding:10px 12px;"></td>
+                    <td id="totalValue" style="padding:10px 12px;">0.00</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+              <div class="empty-state" id="lineItemsEmpty">
+                <p>Search and add products above to create line items.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Pallet Details -->
+        <div class="shipment-tab" id="tab-pallets">
+          <div class="card">
+            <div class="card-header">
+              <h2>Pallet Details (Packing List)</h2>
+              <div class="btn-group">
+                <button class="btn btn-outline btn-sm" onclick="openPalletPresetsModal()">📐 Manage Presets</button>
+                <button class="btn btn-primary btn-sm" onclick="addPallet()">+ Add Pallet</button>
+              </div>
+            </div>
+            <div class="card-body" id="palletsContainer">
+              <div class="empty-state" id="palletsEmpty">
+                <p>Click "Add Pallet" to start building your packing list.</p>
+              </div>
+            </div>
+          </div>
+          <div class="card" id="palletTotalsCard" style="display:none;">
+            <div class="card-header"><h2>Packing Totals</h2></div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Total Pallets</label>
+                  <input type="text" id="totalPallets" readonly>
+                </div>
+                <div class="form-group">
+                  <label>Total Gross Weight (kg)</label>
+                  <input type="text" id="totalGrossWeight" readonly>
+                </div>
+                <div class="form-group">
+                  <label>Total CBM (m3)</label>
+                  <input type="text" id="totalCBM" readonly>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Preview & Print -->
+        <div class="shipment-tab" id="tab-preview">
+          <div class="no-print" style="margin-bottom:20px;">
+            <div id="validationWarnings"></div>
+            <!-- Letterhead selector -->
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+              <span style="font-size:.85rem; font-weight:600; color:var(--gray-600); text-transform:uppercase; letter-spacing:.04em;">Letterhead</span>
+              <select id="letterheadSelect" onchange="onLetterheadSelect(this.value)" style="padding:7px 12px; border:1.5px solid var(--gray-200); border-radius:8px; font-size:.88rem; background:var(--gray-50); min-width:220px;">
+                <option value="">— No Letterhead —</option>
+              </select>
+              <button class="btn btn-outline btn-sm" onclick="navigateTo('settings')">Manage</button>
+            </div>
+            <!-- Format selector -->
+            <div style="display:flex; align-items:center; gap:16px; margin-bottom:14px; flex-wrap:wrap;">
+              <span style="font-size:.85rem; font-weight:600; color:var(--gray-600); text-transform:uppercase; letter-spacing:.04em;">Export Format</span>
+              <div class="mode-toggle" id="exportFormatToggle">
+                <button class="active" data-fmt="pdf" onclick="setExportFormat('pdf',this)">PDF</button>
+                <button data-fmt="excel" onclick="setExportFormat('excel',this)">Excel</button>
+                <button data-fmt="word" onclick="setExportFormat('word',this)">Word</button>
+              </div>
+              <span id="exportFormatHint" style="font-size:.8rem; color:var(--gray-500);">Opens browser print dialog — choose "Save as PDF"</span>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-primary" onclick="generatePreview()">Generate Preview</button>
+              <button class="btn btn-success" onclick="exportDoc('ci')">Export Commercial Invoice</button>
+              <button class="btn btn-success" onclick="exportDoc('pl')">Export Packing List</button>
+              <button class="btn btn-success" onclick="exportDoc('both')">Export Both</button>
+              <button class="btn btn-secondary" onclick="saveShipment()">Save Shipment</button>
+            </div>
+          </div>
+          <div class="print-preview-container" id="previewContainer"></div>
+        </div>
+      </div>
+
+      <!-- ========== ADDRESS BOOK ========== -->
+      <div class="page" id="page-addresses">
+        <div class="card">
+          <div class="card-header">
+            <h2>Address Book</h2>
+            <button class="btn btn-primary btn-sm" onclick="openAddressModal()">+ Add Address</button>
+          </div>
+          <div class="card-body">
+            <div class="search-box" style="margin-bottom:16px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="addressSearch" placeholder="Search addresses..." oninput="renderAddresses()">
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Company / Name</th>
+                    <th>Address</th>
+                    <th>Country</th>
+                    <th>Tags</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="addressTableBody"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="addressesEmpty">
+              <p>No addresses saved. Add your first address above.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== PRODUCT CATALOG ========== -->
+      <div class="page" id="page-products">
+        <div class="card">
+          <div class="card-header">
+            <h2>Product Catalog</h2>
+            <div class="btn-group">
+              <button class="btn btn-primary btn-sm" onclick="openProductModal()">+ Add Product</button>
+              <button class="btn btn-outline btn-sm" onclick="openImportModal()">Import CSV</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="search-box" style="margin-bottom:16px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="productSearch" placeholder="Search by SKU or product name..." oninput="renderProducts()">
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Product Name</th>
+                    <th>HS Code</th>
+                    <th>Origin</th>
+                    <th>Unit Wt (kg)</th>
+                    <th>Unit Value</th>
+                    <th>Pcs/Carton</th>
+                    <th>📦 Pallet Dims (L×W×H)</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="productTableBody"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="productsEmpty">
+              <p>No products in catalog. Add products or import from CSV.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== HISTORY ========== -->
+      <div class="page" id="page-history">
+        <div class="card">
+          <div class="card-header">
+            <h2>Shipment History</h2>
+          </div>
+          <div class="card-body">
+            <div style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+              <div class="search-box" style="flex:1; min-width:200px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="historySearch" placeholder="Search by invoice#, reference, shipper..." oninput="renderHistory()">
+              </div>
+              <select id="historyStatusFilter" onchange="renderHistory()" style="padding:8px 12px; border:1px solid var(--gray-300); border-radius:6px; min-width:140px;">
+                <option value="">All Statuses</option>
+                <option value="Draft">Draft</option>
+                <option value="Submitted">Submitted</option>
+                <option value="Cleared">Cleared</option>
+                <option value="Delivered">Delivered</option>
+              </select>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Invoice #</th>
+                    <th>Reference</th>
+                    <th>Mode</th>
+                    <th>Status</th>
+                    <th>Shipper</th>
+                    <th>Buyer</th>
+                    <th>Items</th>
+                    <th>Value</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="historyTableBody"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="historyEmpty">
+              <p>No shipment history. Saved shipments will appear here.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SETTINGS ========== -->
+      <div class="page" id="page-settings">
+        <div class="card">
+          <div class="card-header">
+            <h2>Company Letterheads</h2>
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('letterheadInput').click()">+ Add Letterhead</button>
+          </div>
+          <div class="card-body">
+            <p style="margin-bottom:16px; color:var(--gray-500); font-size:.9rem;">Save multiple letterheads (e.g. different brands or formats). You can choose which one to use in the Preview tab before exporting.</p>
+            <div id="letterheadsSettingsList">
+              <p style="color:var(--gray-400); font-size:.88rem;">No letterheads saved yet.</p>
+            </div>
+            <input type="file" id="letterheadInput" accept="image/*" style="display:none" onchange="handleLetterheadUpload(event)">
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>Company Information</h2></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Company Name</label>
+                <input type="text" id="companyName" placeholder="Your company name" oninput="saveSettings()">
+              </div>
+              <div class="form-group full">
+                <label>Authorization Text (used in CI declaration)</label>
+                <textarea id="authText" rows="3" oninput="saveSettings()" placeholder="I declare that the above information is true and correct to the best of my knowledge."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Signature -->
+        <div class="card">
+          <div class="card-header"><h2>Authorized Signature</h2></div>
+          <div class="card-body">
+            <p style="margin-bottom:12px; color:var(--gray-500); font-size:.9rem;">Upload a signature image (PNG with transparent background recommended). It will appear in the signature box on all documents.</p>
+            <div style="display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap;">
+              <div class="letterhead-preview" id="signaturePreview" style="min-width:220px; max-width:280px; min-height:90px;" onclick="document.getElementById('signatureInput').click()">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <span style="font-size:.85rem;">Click to upload signature</span>
+              </div>
+              <div>
+                <p style="font-size:.82rem; color:var(--gray-500); margin-bottom:8px;">Tips for best result:</p>
+                <ul style="font-size:.82rem; color:var(--gray-500); margin-left:16px; line-height:1.8;">
+                  <li>PNG with transparent background</li>
+                  <li>Dark ink on white/transparent background</li>
+                  <li>Approx 400×150 px or wider</li>
+                </ul>
+              </div>
+            </div>
+            <input type="file" id="signatureInput" accept="image/*" style="display:none" onchange="handleImageUpload(event,'signature')">
+            <div class="btn-group" style="margin-top:12px;">
+              <button class="btn btn-danger btn-sm" onclick="removeImage('signature')" id="removeSignatureBtn" style="display:none;">Remove Signature</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Company Stamp -->
+        <div class="card">
+          <div class="card-header"><h2>Company Stamp / Chop</h2></div>
+          <div class="card-body">
+            <p style="margin-bottom:12px; color:var(--gray-500); font-size:.9rem;">Upload your company stamp or chop image (PNG with transparent background recommended). It will appear alongside the signature on all documents.</p>
+            <div style="display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap;">
+              <div class="letterhead-preview" id="stampPreview" style="min-width:130px; max-width:160px; min-height:130px;" onclick="document.getElementById('stampInput').click()">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="1"/><line x1="12" y1="23" x2="12" y2="21"/><line x1="3" y1="12" x2="1" y2="12"/><line x1="23" y1="12" x2="21" y2="12"/></svg>
+                <span style="font-size:.85rem;">Click to upload stamp</span>
+              </div>
+              <div>
+                <p style="font-size:.82rem; color:var(--gray-500); margin-bottom:8px;">Tips for best result:</p>
+                <ul style="font-size:.82rem; color:var(--gray-500); margin-left:16px; line-height:1.8;">
+                  <li>PNG with transparent background</li>
+                  <li>Square or circular crop works best</li>
+                  <li>Approx 300×300 px</li>
+                </ul>
+              </div>
+            </div>
+            <input type="file" id="stampInput" accept="image/*" style="display:none" onchange="handleImageUpload(event,'stamp')">
+            <div class="btn-group" style="margin-top:12px;">
+              <button class="btn btn-danger btn-sm" onclick="removeImage('stamp')" id="removeStampBtn" style="display:none;">Remove Stamp</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Team Sync -->
+        <div class="card">
+          <div class="card-header">
+            <h2>Team Sync</h2>
+            <span id="syncBadge" style="font-size:.82rem; color:#94a3b8; font-weight:500;">○ Local Only</span>
+          </div>
+          <div class="card-body">
+            <p style="margin-bottom:16px; color:var(--gray-500); font-size:.9rem;">Connect to a shared Firebase workspace so your whole team shares the same addresses, products, shipments, letterheads, and settings in real-time across all devices.</p>
+            <div id="syncConnectedView" style="display:none;">
+              <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px 16px; margin-bottom:14px;">
+                <p style="color:#15803d; font-size:.9rem; font-weight:600;">✓ Connected — Team: <span id="syncTeamLabel" style="font-family:monospace;"></span></p>
+                <p style="color:#16a34a; font-size:.82rem; margin-top:4px;">All data is syncing in real-time across your team.</p>
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="cloudDisconnect()">Disconnect</button>
+            </div>
+            <div id="syncSetupView">
+              <div class="form-grid">
+                <div class="form-group full">
+                  <label>Firebase Config <span style="color:var(--gray-400); font-weight:400; font-size:.82rem;">(Firebase Console → Project Settings → Your Apps → SDK setup)</span></label>
+                  <textarea id="fbConfigInput" rows="6" placeholder='Paste the firebaseConfig object here, e.g.&#10;{&#10;  apiKey: "AIza...",&#10;  authDomain: "...",&#10;  projectId: "..."&#10;}' style="font-family:monospace; font-size:.8rem; line-height:1.5;"></textarea>
+                </div>
+                <div class="form-group">
+                  <label>Team ID <span style="color:var(--gray-400); font-weight:400; font-size:.82rem;">(shared secret — all team members use the same one)</span></label>
+                  <input type="text" id="fbTeamId" placeholder="e.g. im8-team-2024">
+                </div>
+                <div class="form-group">
+                  <label>Database Name <span style="color:var(--gray-400); font-weight:400; font-size:.82rem;">(Firebase Console → Firestore → database dropdown name)</span></label>
+                  <input type="text" id="fbDbName" placeholder="(default)" value="(default)">
+                </div>
+              </div>
+              <button class="btn btn-primary" onclick="cloudSave()">Connect to Team</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>Data Management</h2></div>
+          <div class="card-body">
+            <div class="btn-group">
+              <button class="btn btn-secondary" onclick="exportAllData()">Export All Data (JSON)</button>
+              <button class="btn btn-outline" onclick="document.getElementById('importDataInput').click()">Import Data (JSON)</button>
+              <input type="file" id="importDataInput" accept=".json" style="display:none" onchange="importAllData(event)">
+              <button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== PRINT PAGE (hidden on screen, shown on print) ========== -->
+      <div class="page" id="page-print"></div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL CONTAINER
+     ============================================================ -->
+<div id="modalContainer"></div>
+
+<script>
+/* ============================================================
+   DATA STORE — localStorage backed
+   ============================================================ */
+const STORE_KEYS = {
+  addresses: 'sdg_addresses',
+  products: 'sdg_products',
+  shipments: 'sdg_shipments',
+  letterhead: 'sdg_letterhead',
+  settings: 'sdg_settings',
+  palletDefaults: 'sdg_palletDefaults',
+  palletPresets: 'sdg_palletPresets',
+  signature: 'sdg_signature',
+  stamp: 'sdg_stamp',
+  letterheads: 'sdg_letterheads'
+};
+
+let selectedLetterheadId = null; // null = no letterhead
+
+/* Seed default pallet presets on first load */
+function initPalletPresets() {
+  const existing = loadStore('palletPresets');
+  if (existing.length) return;
+  const defaults = [
+    { id: uid(), name: 'Euro Pallet',      dimL: 120, dimW: 80,  dimH: 145, grossWeight: 0 },
+    { id: uid(), name: 'Standard Pallet',  dimL: 100, dimW: 100, dimH: 145, grossWeight: 0 },
+    { id: uid(), name: 'Half Euro Pallet', dimL: 80,  dimW: 60,  dimH: 145, grossWeight: 0 },
+    { id: uid(), name: 'US Pallet',        dimL: 121, dimW: 101, dimH: 145, grossWeight: 0 },
+  ];
+  saveStore('palletPresets', defaults);
+}
+
+function loadStore(key) {
+  try { return JSON.parse(localStorage.getItem(STORE_KEYS[key])) || []; } catch { return []; }
+}
+function saveStore(key, data) {
+  localStorage.setItem(STORE_KEYS[key], JSON.stringify(data));
+  cloudPush(key, data);
+}
+function loadObj(key) {
+  try { return JSON.parse(localStorage.getItem(STORE_KEYS[key])) || {}; } catch { return {}; }
+}
+function saveObj(key, data) {
+  localStorage.setItem(STORE_KEYS[key], JSON.stringify(data));
+  cloudPush(key, data);
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+function toast(msg, type = 'success') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3100);
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+const pageTitles = {
+  dashboard: 'Dashboard', shipment: 'New Shipment', addresses: 'Address Book',
+  products: 'Product Catalog', history: 'Shipment History', settings: 'Settings'
+};
+
+function navigateTo(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('.sidebar-nav button').forEach(b => b.classList.toggle('active', b.dataset.page === page));
+  document.getElementById('pageTitle').textContent = pageTitles[page] || page;
+  if (page === 'dashboard') refreshDashboard();
+  if (page === 'addresses') renderAddresses();
+  if (page === 'products') renderProducts();
+  if (page === 'history') renderHistory();
+  if (page === 'shipment') populateAddressDropdowns();
+  if (page === 'settings') loadSettings();
+}
+
+document.querySelectorAll('.sidebar-nav button').forEach(btn => {
+  btn.addEventListener('click', () => navigateTo(btn.dataset.page));
+});
+
+/* ============================================================
+   SHIPMENT TABS
+   ============================================================ */
+function switchShipmentTab(btn) {
+  document.querySelectorAll('.section-tabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.shipment-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(btn.dataset.tab).classList.add('active');
+  if (btn.dataset.tab === 'tab-preview') { runValidations(); renderLetterheadSelector(); }
+}
+
+/* ============================================================
+   FEATURE 1 — HS CODE FORMAT VALIDATION
+   ============================================================ */
+// HS code format rules by destination country
+const HS_FORMATS = {
+  // UK: 10-digit commodity code, no dots (e.g. 2106909869)
+  'GB': { label: 'UK Commodity Code', digits: 10, dots: false },
+  'UNITED KINGDOM': { label: 'UK Commodity Code', digits: 10, dots: false },
+  'UK': { label: 'UK Commodity Code', digits: 10, dots: false },
+  // US: HTS code with dots, format XXXX.XX.XXXX (10 digits + dots, e.g. 2106.90.6798)
+  'US': { label: 'US HTS Code', digits: 10, dots: true },
+  'UNITED STATES': { label: 'US HTS Code', digits: 10, dots: true },
+  'USA': { label: 'US HTS Code', digits: 10, dots: true },
+  // HK: 8-digit HS code, no dots
+  'HK': { label: 'HK HS Code', digits: 8, dots: false },
+  'HONG KONG': { label: 'HK HS Code', digits: 8, dots: false },
+  // EU: 8-digit CN code (import), no dots
+  'EU': { label: 'EU CN Code', digits: 8, dots: false },
+};
+
+function normalizeCountry(str) {
+  return (str || '').toUpperCase().trim();
+}
+
+function validateHSCode(code, rule) {
+  const digits = code.replace(/\./g, '');
+  if (digits.length !== rule.digits) return false;
+  if (rule.dots) {
+    // US format: must have dots, e.g. XXXX.XX.XXXX
+    return /^\d{4}\.\d{2}\.\d{4}$/.test(code.trim());
+  } else {
+    // Must be all digits, no dots
+    return /^\d+$/.test(code.trim()) && code.trim().length === rule.digits;
+  }
+}
+
+function getHSIssues() {
+  // Determine destination country from buyer or delivery address
+  const buyerData = getSelectedAddress('buyer');
+  const deliveryData = getSelectedAddress('delivery');
+  const destCountry = normalizeCountry(buyerData?.country || deliveryData?.country || '');
+  const rule = HS_FORMATS[destCountry];
+  if (!rule || !destCountry) return [];  // No rule for this country
+
+  const issues = [];
+  // Check line items
+  lineItems.forEach(li => {
+    if (!li.hsCode) return;
+    if (!validateHSCode(li.hsCode, rule)) {
+      issues.push(`CI — ${li.sku || li.name}: HS code "${li.hsCode}" does not match ${rule.label} format (expected ${rule.digits} digits${rule.dots ? ' with dots, e.g. XXXX.XX.XXXX' : ', no dots'})`);
+    }
+  });
+  // Check pallets
+  pallets.forEach((p, i) => {
+    if (!p.hsCode) return;
+    if (!validateHSCode(p.hsCode, rule)) {
+      issues.push(`PL — Pallet ${i+1} (${p.sku || 'no SKU'}): HS code "${p.hsCode}" does not match ${rule.label} format`);
+    }
+  });
+  return issues;
+}
+
+/* ============================================================
+   FEATURE 2 — CI ↔ PL WEIGHT CROSS-CHECK
+   ============================================================ */
+function getWeightMismatch() {
+  // CI net weight: sum of qty × unitWeight per line item
+  let ciNetWeight = 0;
+  lineItems.forEach(li => { ciNetWeight += (li.qty || 0) * (li.unitWeight || 0); });
+
+  // PL net weight: sum of pallet netWeight
+  let plNetWeight = 0;
+  pallets.forEach(p => { plNetWeight += parseFloat(p.netWeight) || 0; });
+
+  // PL gross weight: sum of pallet grossWeight
+  let plGrossWeight = 0;
+  pallets.forEach(p => { plGrossWeight += parseFloat(p.grossWeight) || 0; });
+
+  const issues = [];
+  if (ciNetWeight > 0 && plNetWeight > 0) {
+    const diff = Math.abs(ciNetWeight - plNetWeight);
+    const pct = (diff / ciNetWeight) * 100;
+    if (pct > 5) {
+      issues.push(`CI net weight (${ciNetWeight.toFixed(2)} kg) differs from PL net weight (${plNetWeight.toFixed(2)} kg) by ${pct.toFixed(1)}%. Check unit weights in product catalog or pallet entries.`);
+    }
+  }
+  return { issues, ciNetWeight, plNetWeight, plGrossWeight };
+}
+
+/* ============================================================
+   COMBINED VALIDATION RUNNER
+   ============================================================ */
+function runValidations() {
+  const container = document.getElementById('validationWarnings');
+  if (!container) return;
+
+  const hsIssues = getHSIssues();
+  const { issues: weightIssues, ciNetWeight, plNetWeight, plGrossWeight } = getWeightMismatch();
+
+  let html = '';
+
+  if (hsIssues.length) {
+    html += `<div class="validation-banner warn">
+      <div class="banner-title">⚠️ HS Code Format Issues</div>
+      <ul>${hsIssues.map(i => `<li>${esc(i)}</li>`).join('')}</ul>
+    </div>`;
+  }
+
+  if (weightIssues.length) {
+    html += `<div class="validation-banner warn">
+      <div class="banner-title">⚠️ Weight Mismatch (CI vs PL)</div>
+      <ul>${weightIssues.map(i => `<li>${esc(i)}</li>`).join('')}</ul>
+      <div style="font-size:.82rem; color:var(--gray-600); margin-top:4px;">CI Net: ${ciNetWeight.toFixed(2)} kg &nbsp;|&nbsp; PL Net: ${plNetWeight.toFixed(2)} kg &nbsp;|&nbsp; PL Gross: ${plGrossWeight.toFixed(2)} kg</div>
+    </div>`;
+  }
+
+  if (!hsIssues.length && !weightIssues.length && (lineItems.length > 0 || pallets.length > 0)) {
+    html = `<div class="validation-banner" style="background:var(--green-light); border:1px solid #86efac;">
+      <div class="banner-title" style="color:#166534;">✓ All checks passed — HS codes and weights look good</div>
+    </div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+/* ============================================================
+   MODE TOGGLE (SEA / AIR)
+   ============================================================ */
+let currentMode = 'SEA';
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('#modeToggle button').forEach(b => b.classList.toggle('active', b.textContent.trim() === mode));
+  document.querySelectorAll('.sea-only').forEach(el => {
+    el.classList.toggle('hidden', mode === 'AIR');
+  });
+}
+
+/* ============================================================
+   ADDRESS BOOK
+   ============================================================ */
+function openAddressModal(editId) {
+  const addresses = loadStore('addresses');
+  const addr = editId ? addresses.find(a => a.id === editId) : null;
+  const title = addr ? 'Edit Address' : 'Add Address';
+  const html = `
+    <div class="modal-overlay" >
+      <div class="modal">
+        <div class="modal-header"><h3>${title}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group"><label>Name / Contact</label><input type="text" id="addr_name" value="${esc(addr?.name)}"></div>
+            <div class="form-group"><label>Company</label><input type="text" id="addr_company" value="${esc(addr?.company)}"></div>
+            <div class="form-group full"><label>Address Line 1</label><input type="text" id="addr_line1" value="${esc(addr?.line1)}"></div>
+            <div class="form-group full"><label>Address Line 2</label><input type="text" id="addr_line2" value="${esc(addr?.line2)}"></div>
+            <div class="form-group"><label>City</label><input type="text" id="addr_city" value="${esc(addr?.city)}"></div>
+            <div class="form-group"><label>State / Province</label><input type="text" id="addr_state" value="${esc(addr?.state)}"></div>
+            <div class="form-group"><label>Postal Code</label><input type="text" id="addr_postal" value="${esc(addr?.postal)}"></div>
+            <div class="form-group"><label>Country</label><input type="text" id="addr_country" value="${esc(addr?.country)}"></div>
+            <div class="form-group"><label>Phone</label><input type="text" id="addr_phone" value="${esc(addr?.phone)}"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="addr_email" value="${esc(addr?.email)}"></div>
+            <div class="form-group"><label>VAT / EIN / Tax ID</label><input type="text" id="addr_taxid" value="${esc(addr?.taxid)}"></div>
+            <div class="form-group"><label>EORI Number</label><input type="text" id="addr_eori" placeholder="e.g. GB123456789000" value="${esc(addr?.eori)}"></div>
+            <div class="form-group full">
+              <label>Tags (roles)</label>
+              <div class="checkbox-group">
+                <label><input type="checkbox" id="tag_shipper" ${addr?.tags?.includes('shipper')?'checked':''}> Shipper</label>
+                <label><input type="checkbox" id="tag_buyer" ${addr?.tags?.includes('buyer')?'checked':''}> Consignee/Buyer</label>
+                <label><input type="checkbox" id="tag_notify" ${addr?.tags?.includes('notify')?'checked':''}> Notify Party</label>
+                <label><input type="checkbox" id="tag_pickup" ${addr?.tags?.includes('pickup')?'checked':''}> Pickup</label>
+                <label><input type="checkbox" id="tag_delivery" ${addr?.tags?.includes('delivery')?'checked':''}> Delivery</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveAddress('${editId||''}')">Save Address</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalContainer').innerHTML = html;
+}
+
+function saveAddress(editId) {
+  const tags = [];
+  ['shipper','buyer','notify','pickup','delivery'].forEach(t => {
+    if (document.getElementById('tag_'+t).checked) tags.push(t);
+  });
+  const data = {
+    id: editId || uid(),
+    name: val('addr_name'), company: val('addr_company'),
+    line1: val('addr_line1'), line2: val('addr_line2'),
+    city: val('addr_city'), state: val('addr_state'),
+    postal: val('addr_postal'), country: val('addr_country'),
+    phone: val('addr_phone'), email: val('addr_email'),
+    taxid: val('addr_taxid'), eori: val('addr_eori'), tags
+  };
+  if (!data.company && !data.name) { toast('Name or Company required', 'error'); return; }
+  const addresses = loadStore('addresses');
+  const idx = addresses.findIndex(a => a.id === data.id);
+  if (idx >= 0) addresses[idx] = data; else addresses.push(data);
+  saveStore('addresses', addresses);
+  closeModal();
+  renderAddresses();
+  toast(editId ? 'Address updated' : 'Address saved');
+}
+
+function deleteAddress(id) {
+  if (!confirm('Delete this address?')) return;
+  const addresses = loadStore('addresses').filter(a => a.id !== id);
+  saveStore('addresses', addresses);
+  renderAddresses();
+  toast('Address deleted');
+}
+
+function renderAddresses() {
+  const addresses = loadStore('addresses');
+  const q = (document.getElementById('addressSearch')?.value || '').toLowerCase();
+  const filtered = addresses.filter(a =>
+    !q || [a.name,a.company,a.city,a.country].join(' ').toLowerCase().includes(q)
+  );
+  const tbody = document.getElementById('addressTableBody');
+  const empty = document.getElementById('addressesEmpty');
+  if (!filtered.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  tbody.innerHTML = filtered.map(a => `
+    <tr>
+      <td><strong>${esc(a.company || a.name)}</strong>${a.company && a.name ? '<br><span style="color:var(--gray-500);font-size:.85rem;">'+esc(a.name)+'</span>' : ''}</td>
+      <td style="font-size:.88rem;">${esc([a.line1,a.line2,a.city,a.state,a.postal].filter(Boolean).join(', '))}</td>
+      <td>${esc(a.country)}</td>
+      <td>${(a.tags||[]).map(t => `<span class="tag tag-${t}">${t}</span>`).join(' ')}</td>
+      <td class="actions">
+        <button class="btn btn-outline btn-sm" onclick="openAddressModal('${a.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAddress('${a.id}')">Del</button>
+      </td>
+    </tr>`).join('');
+}
+
+/* ============================================================
+   PRODUCT CATALOG
+   ============================================================ */
+function openProductModal(editId) {
+  const products = loadStore('products');
+  const prod = editId ? products.find(p => p.id === editId) : null;
+  const title = prod ? 'Edit Product' : 'Add Product';
+  const html = `
+    <div class="modal-overlay" >
+      <div class="modal">
+        <div class="modal-header"><h3>${title}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group"><label>SKU</label><input type="text" id="prod_sku" value="${esc(prod?.sku||'')}"></div>
+            <div class="form-group"><label>Product Name</label><input type="text" id="prod_name" value="${esc(prod?.name||'')}"></div>
+            <div class="form-group"><label>HS Code</label><input type="text" id="prod_hs" value="${esc(prod?.hsCode||'')}"></div>
+            <div class="form-group"><label>Country of Origin</label><input type="text" id="prod_origin" value="${esc(prod?.origin||'')}"></div>
+            <div class="form-group"><label>Unit Weight (kg)</label><input type="number" step="0.001" id="prod_weight" value="${prod?.unitWeight||''}"></div>
+            <div class="form-group"><label>Unit Value (USD)</label><input type="number" step="0.01" id="prod_value" value="${prod?.unitValue||''}"></div>
+            <div class="form-group"><label>Pcs per Carton</label><input type="number" id="prod_pcsCarton" value="${prod?.pcsPerCarton||''}"></div>
+          </div>
+          <div style="margin:18px 0 10px; padding-top:16px; border-top:1.5px dashed var(--gray-200);">
+            <div style="font-size:.78rem; font-weight:700; color:var(--blue); text-transform:uppercase; letter-spacing:.07em; margin-bottom:12px;">
+              📦 Pallet Dimensions — auto-fills Packing List
+            </div>
+            <div class="form-grid">
+              <div class="form-group"><label>Pallet Length (cm)</label><input type="number" step="0.1" id="prod_palletL" value="${prod?.palletL||''}"></div>
+              <div class="form-group"><label>Pallet Width (cm)</label><input type="number" step="0.1" id="prod_palletW" value="${prod?.palletW||''}"></div>
+              <div class="form-group"><label>Pallet Height (cm)</label><input type="number" step="0.1" id="prod_palletH" value="${prod?.palletH||''}"></div>
+              <div class="form-group"><label>Net Wt / Pallet (kg)</label><input type="number" step="0.01" id="prod_palletNet" value="${prod?.palletNetWeight||''}"></div>
+              <div class="form-group"><label>Gross Wt / Pallet (kg)</label><input type="number" step="0.01" id="prod_palletGross" value="${prod?.palletGrossWeight||''}"></div>
+              <div class="form-group"><label>Cartons / Pallet</label><input type="number" id="prod_cartonsPerPallet" value="${prod?.cartonsPerPallet||''}"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveProduct('${editId||''}')">Save Product</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalContainer').innerHTML = html;
+}
+
+function saveProduct(editId) {
+  const data = {
+    id: editId || uid(),
+    sku: val('prod_sku'), name: val('prod_name'),
+    hsCode: val('prod_hs'), origin: val('prod_origin'),
+    unitWeight: parseFloat(val('prod_weight')) || 0,
+    unitValue: parseFloat(val('prod_value')) || 0,
+    pcsPerCarton: parseInt(val('prod_pcsCarton')) || 0,
+    // Pallet dimensions
+    palletL: parseFloat(val('prod_palletL')) || 0,
+    palletW: parseFloat(val('prod_palletW')) || 0,
+    palletH: parseFloat(val('prod_palletH')) || 0,
+    palletNetWeight: parseFloat(val('prod_palletNet')) || 0,
+    palletGrossWeight: parseFloat(val('prod_palletGross')) || 0,
+    cartonsPerPallet: parseInt(val('prod_cartonsPerPallet')) || 0
+  };
+  if (!data.sku) { toast('SKU is required', 'error'); return; }
+  const products = loadStore('products');
+  const idx = products.findIndex(p => p.id === data.id);
+  if (idx >= 0) products[idx] = data; else products.push(data);
+  saveStore('products', products);
+  closeModal();
+  renderProducts();
+  toast(editId ? 'Product updated' : 'Product saved');
+}
+
+function deleteProduct(id) {
+  if (!confirm('Delete this product?')) return;
+  const products = loadStore('products').filter(p => p.id !== id);
+  saveStore('products', products);
+  renderProducts();
+  toast('Product deleted');
+}
+
+function renderProducts() {
+  const products = loadStore('products');
+  const q = (document.getElementById('productSearch')?.value || '').toLowerCase();
+  const filtered = products.filter(p =>
+    !q || [p.sku,p.name].join(' ').toLowerCase().includes(q)
+  );
+  const tbody = document.getElementById('productTableBody');
+  const empty = document.getElementById('productsEmpty');
+  if (!filtered.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  tbody.innerHTML = filtered.map(p => {
+    const hasDims = p.palletL || p.palletW || p.palletH;
+    const dimStr = hasDims ? `${p.palletL||0}×${p.palletW||0}×${p.palletH||0} cm` : '—';
+    const netStr   = p.palletNetWeight   ? `Net: ${p.palletNetWeight} kg` : '';
+    const grossStr = p.palletGrossWeight ? `Gross: ${p.palletGrossWeight} kg` : '';
+    return `
+    <tr>
+      <td><strong>${esc(p.sku)}</strong></td>
+      <td>${esc(p.name)}</td>
+      <td>${esc(p.hsCode)}</td>
+      <td>${esc(p.origin)}</td>
+      <td>${p.unitWeight}</td>
+      <td>${p.unitValue.toFixed(2)}</td>
+      <td>${p.pcsPerCarton || '-'}</td>
+      <td style="font-size:.82rem;">
+        ${hasDims
+          ? `<span style="font-weight:600; color:var(--blue);">${dimStr}</span><br>
+             <span style="color:var(--gray-500);">${[netStr, grossStr, p.cartonsPerPallet ? p.cartonsPerPallet+' ctn/plt' : ''].filter(Boolean).join(' · ')}</span>`
+          : '<span style="color:var(--gray-300);">Not set</span>'}
+      </td>
+      <td class="actions">
+        <button class="btn btn-outline btn-sm" onclick="openProductModal('${p.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">Del</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* CSV Import */
+function openImportModal() {
+  const html = `
+    <div class="modal-overlay" >
+      <div class="modal">
+        <div class="modal-header"><h3>Import Products from CSV</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+        <div class="modal-body">
+          <p style="margin-bottom:12px; color:var(--gray-500); font-size:.9rem;">
+            Paste CSV data or upload a file. Expected columns (header row required):<br>
+            <strong>SKU, Product Name, HS Code, Country of Origin, Unit Weight (kg), Unit Value (USD), Pcs per Carton</strong>
+          </p>
+          <div class="form-group full">
+            <label>Upload CSV</label>
+            <input type="file" id="csvFile" accept=".csv,.txt" onchange="loadCSVFile(event)">
+          </div>
+          <div class="form-group full" style="margin-top:12px;">
+            <label>Or Paste CSV</label>
+            <textarea id="csvText" rows="8" placeholder="SKU,Product Name,HS Code,Origin,Weight,Value,Pcs/Carton&#10;ABC-001,Widget,8471.30,CN,0.5,12.50,100"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="importCSV()">Import</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalContainer').innerHTML = html;
+}
+
+function loadCSVFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => document.getElementById('csvText').value = ev.target.result;
+  reader.readAsText(file);
+}
+
+function importCSV() {
+  const text = val('csvText');
+  if (!text.trim()) { toast('No CSV data', 'error'); return; }
+  const lines = text.trim().split('\n').map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+  if (lines.length < 2) { toast('Need header + at least 1 row', 'error'); return; }
+  const products = loadStore('products');
+  let count = 0;
+  for (let i = 1; i < lines.length; i++) {
+    const r = lines[i];
+    if (!r[0]) continue;
+    const existing = products.find(p => p.sku === r[0]);
+    const prod = {
+      id: existing?.id || uid(),
+      sku: r[0] || '', name: r[1] || '', hsCode: r[2] || '', origin: r[3] || '',
+      unitWeight: parseFloat(r[4]) || 0, unitValue: parseFloat(r[5]) || 0,
+      pcsPerCarton: parseInt(r[6]) || 0
+    };
+    if (existing) { Object.assign(existing, prod); } else { products.push(prod); }
+    count++;
+  }
+  saveStore('products', products);
+  closeModal();
+  renderProducts();
+  toast(`Imported ${count} products`);
+}
+
+/* ============================================================
+   ADDRESS DROPDOWNS FOR SHIPMENT
+   ============================================================ */
+function populateAddressDropdowns() {
+  const addresses = loadStore('addresses');
+  const fields = [
+    { id: 'shipperSelect', tag: 'shipper', label: 'Shipper' },
+    { id: 'buyerSelect', tag: 'buyer', label: 'Buyer' },
+    { id: 'notifySelect', tag: 'notify', label: 'Notify Party' },
+    { id: 'pickupSelect', tag: 'pickup', label: 'Pickup Address' },
+    { id: 'deliverySelect', tag: 'delivery', label: 'Delivery Address' },
+  ];
+  fields.forEach(f => {
+    const sel = document.getElementById(f.id);
+    if (!sel) return;
+    const current = sel.value;
+    // tagged first, then all others
+    const tagged = addresses.filter(a => a.tags?.includes(f.tag));
+    const others = addresses.filter(a => !a.tags?.includes(f.tag));
+    let opts = `<option value="">-- Select ${f.label} --</option>`;
+    if (tagged.length) {
+      opts += `<optgroup label="Tagged as ${f.tag}">`;
+      tagged.forEach(a => opts += `<option value="${a.id}">${esc(a.company||a.name)} - ${esc(a.country)}</option>`);
+      opts += '</optgroup>';
+    }
+    if (others.length) {
+      opts += `<optgroup label="Other addresses">`;
+      others.forEach(a => opts += `<option value="${a.id}">${esc(a.company||a.name)} - ${esc(a.country)}</option>`);
+      opts += '</optgroup>';
+    }
+    sel.innerHTML = opts;
+    if (current) sel.value = current;
+  });
+}
+
+function onAddressSelect(sel, role) {
+  // selection stored in the select element itself; used at generation time
+}
+
+function getSelectedAddress(role) {
+  const map = { shipper: 'shipperSelect', buyer: 'buyerSelect', notify: 'notifySelect', pickup: 'pickupSelect', delivery: 'deliverySelect' };
+  const id = document.getElementById(map[role])?.value;
+  if (!id) return null;
+  return loadStore('addresses').find(a => a.id === id) || null;
+}
+
+function formatAddress(a) {
+  if (!a) return '';
+  const parts = [];
+  if (a.company) parts.push(a.company);
+  if (a.name) parts.push(a.name);
+  if (a.line1) parts.push(a.line1);
+  if (a.line2) parts.push(a.line2);
+  const cityLine = [a.city, a.state, a.postal].filter(Boolean).join(', ');
+  if (cityLine) parts.push(cityLine);
+  if (a.country) parts.push(a.country);
+  if (a.phone) parts.push('Tel: ' + a.phone);
+  if (a.email) parts.push(a.email);
+  if (a.taxid) parts.push('Tax ID: ' + a.taxid);
+  if (a.eori) parts.push('EORI: ' + a.eori);
+  return parts.join('\n');
+}
+
+/* ============================================================
+   LINE ITEMS
+   ============================================================ */
+let lineItems = [];
+
+function searchProductForLine(q) {
+  const dd = document.getElementById('lineItemDropdown');
+  const products = loadStore('products');
+  if (!q) { dd.classList.remove('open'); return; }
+  const filtered = products.filter(p =>
+    p.sku.toLowerCase().includes(q.toLowerCase()) || p.name.toLowerCase().includes(q.toLowerCase())
+  ).slice(0, 10);
+  if (!filtered.length) { dd.classList.remove('open'); return; }
+  dd.innerHTML = filtered.map(p => `
+    <div class="option" onclick="addLineItem('${p.id}')">
+      <span class="sku">${esc(p.sku)}</span><span class="name">${esc(p.name)}</span>
+    </div>`).join('');
+  dd.classList.add('open');
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.product-search-wrapper')) {
+    document.getElementById('lineItemDropdown')?.classList.remove('open');
+  }
+});
+
+function addLineItem(productId) {
+  const products = loadStore('products');
+  const p = products.find(pr => pr.id === productId);
+  if (!p) return;
+  lineItems.push({
+    id: uid(), productId: p.id, sku: p.sku, name: p.name,
+    hsCode: p.hsCode, origin: p.origin,
+    qty: 0, unit: 'pcs', unitWeight: p.unitWeight, unitValue: p.unitValue
+  });
+  document.getElementById('lineItemSearch').value = '';
+  document.getElementById('lineItemDropdown').classList.remove('open');
+  renderLineItems();
+}
+
+function removeLineItem(id) {
+  lineItems = lineItems.filter(li => li.id !== id);
+  renderLineItems();
+}
+
+function updateLineItem(id, field, value) {
+  const item = lineItems.find(li => li.id === id);
+  if (!item) return;
+  if (['qty','unitValue','unitWeight'].includes(field)) {
+    item[field] = parseFloat(value) || 0;
+  } else {
+    item[field] = value;
+  }
+  renderLineItems();
+}
+
+function renderLineItems() {
+  const tbody = document.getElementById('lineItemsBody');
+  const empty = document.getElementById('lineItemsEmpty');
+  const currency = document.getElementById('currency')?.value || 'USD';
+  if (!lineItems.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); updateLineTotals(); return; }
+  empty.classList.add('hidden');
+  tbody.innerHTML = lineItems.map(li => {
+    const totalCustoms = (li.qty * li.unitValue);
+    const netWeight = (li.qty * li.unitWeight);
+    return `
+    <tr>
+      <td>
+        <div style="font-weight:600;">${esc(li.sku)} - ${esc(li.name)}</div>
+        <div style="font-size:.82rem; color:var(--gray-500);">HS: ${esc(li.hsCode)} | Origin: ${esc(li.origin)}</div>
+      </td>
+      <td><input type="number" min="0" value="${li.qty}" style="width:80px; padding:4px 8px; border:1px solid var(--gray-300); border-radius:4px;" onchange="updateLineItem('${li.id}','qty',this.value)"></td>
+      <td>pcs</td>
+      <td>${netWeight.toFixed(2)} kg</td>
+      <td><input type="number" step="0.01" min="0" value="${li.unitValue}" style="width:90px; padding:4px 8px; border:1px solid var(--gray-300); border-radius:4px;" onchange="updateLineItem('${li.id}','unitValue',this.value)"> ${currency}</td>
+      <td>${totalCustoms.toFixed(2)} ${currency}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeLineItem('${li.id}')" title="Remove">&times;</button></td>
+    </tr>`;
+  }).join('');
+  updateLineTotals();
+}
+
+function updateLineTotals() {
+  const currency = document.getElementById('currency')?.value || 'USD';
+  let totalPcs = 0, totalWt = 0, totalVal = 0;
+  lineItems.forEach(li => {
+    totalPcs += li.qty;
+    totalWt += li.qty * li.unitWeight;
+    totalVal += li.qty * li.unitValue;
+  });
+  document.getElementById('totalPcs').textContent = totalPcs + ' pcs';
+  document.getElementById('totalWeight').textContent = totalWt.toFixed(2) + ' kg';
+  document.getElementById('totalValue').textContent = totalVal.toFixed(2) + ' ' + currency;
+}
+
+/* ============================================================
+   PALLETS
+   ============================================================ */
+let pallets = [];
+
+function addPallet() {
+  pallets.push({
+    id: uid(), productId: '', sku: '', productName: '', hsCode: '', origin: '',
+    cartonQty: 0, netWeight: 0, grossWeight: 0,
+    dimL: 0, dimW: 0, dimH: 0, remarks: ''
+  });
+  renderPallets();
+}
+
+function removePallet(id) {
+  pallets = pallets.filter(p => p.id !== id);
+  renderPallets();
+}
+
+function duplicatePallet(id) {
+  const src = pallets.find(p => p.id === id);
+  if (!src) return;
+  pallets.push({ ...src, id: uid() });
+  renderPallets();
+  toast('Pallet duplicated');
+}
+
+function updatePallet(id, field, value) {
+  const p = pallets.find(pl => pl.id === id);
+  if (!p) return;
+  if (['cartonQty','netWeight','grossWeight','dimL','dimW','dimH'].includes(field)) {
+    p[field] = parseFloat(value) || 0;
+  } else {
+    p[field] = value;
+  }
+  updatePalletTotals();
+}
+
+function selectPalletProduct(palletId) {
+  const products = loadStore('products');
+  const html = `
+    <div class="modal-overlay" >
+      <div class="modal">
+        <div class="modal-header"><h3>Select Product</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+        <div class="modal-body">
+          <div class="search-box" style="margin-bottom:12px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="palletProdSearch" placeholder="Search products..." oninput="filterPalletProducts('${palletId}')">
+          </div>
+          <div id="palletProdList" style="max-height:300px; overflow-y:auto;">
+            ${products.map(p => `
+              <div class="option" style="padding:10px 12px; cursor:pointer; border-bottom:1px solid var(--gray-100);" onclick="assignPalletProduct('${palletId}','${p.id}')">
+                <strong>${esc(p.sku)}</strong> - ${esc(p.name)} <span style="color:var(--gray-400);">(HS: ${esc(p.hsCode)})</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalContainer').innerHTML = html;
+}
+
+function filterPalletProducts(palletId) {
+  const q = document.getElementById('palletProdSearch').value.toLowerCase();
+  const products = loadStore('products').filter(p =>
+    p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
+  );
+  document.getElementById('palletProdList').innerHTML = products.map(p => `
+    <div class="option" style="padding:10px 12px; cursor:pointer; border-bottom:1px solid var(--gray-100);" onclick="assignPalletProduct('${palletId}','${p.id}')">
+      <strong>${esc(p.sku)}</strong> - ${esc(p.name)} <span style="color:var(--gray-400);">(HS: ${esc(p.hsCode)})</span>
+    </div>
+  `).join('');
+}
+
+function assignPalletProduct(palletId, productId) {
+  const products = loadStore('products');
+  const prod = products.find(p => p.id === productId);
+  const pallet = pallets.find(p => p.id === palletId);
+  if (!prod || !pallet) return;
+  pallet.productId = prod.id;
+  pallet.sku = prod.sku;
+  pallet.productName = prod.name;
+  pallet.hsCode = prod.hsCode;
+  pallet.origin = prod.origin;
+
+  // 1st priority: pallet dims saved on the product itself
+  if (prod.palletL || prod.palletW || prod.palletH) {
+    if (prod.palletL)            pallet.dimL        = prod.palletL;
+    if (prod.palletW)            pallet.dimW        = prod.palletW;
+    if (prod.palletH)            pallet.dimH        = prod.palletH;
+    if (prod.palletNetWeight)    pallet.netWeight   = prod.palletNetWeight;
+    if (prod.palletGrossWeight)  pallet.grossWeight = prod.palletGrossWeight;
+    if (prod.cartonsPerPallet)   pallet.cartonQty   = prod.cartonsPerPallet;
+    toast(`Pallet dims loaded from product catalog for ${prod.sku}`);
+  } else {
+    // 2nd priority: legacy palletDefaults (SKU Default saves)
+    const defaults = loadObj('palletDefaults');
+    const def = defaults[prod.sku];
+    if (def) {
+      pallet.netWeight  = def.netWeight  || pallet.netWeight;
+      pallet.grossWeight = def.grossWeight || pallet.grossWeight;
+      pallet.dimL       = def.dimL       || pallet.dimL;
+      pallet.dimW       = def.dimW       || pallet.dimW;
+      pallet.dimH       = def.dimH       || pallet.dimH;
+      pallet.remarks    = def.remarks    || pallet.remarks;
+      pallet.cartonQty  = def.cartonQty  || pallet.cartonQty;
+    }
+  }
+  closeModal();
+  renderPallets();
+}
+
+function savePalletDefaults(palletId) {
+  const pallet = pallets.find(p => p.id === palletId);
+  if (!pallet || !pallet.sku) { toast('Select a product first', 'error'); return; }
+  const defaults = loadObj('palletDefaults');
+  defaults[pallet.sku] = {
+    netWeight: pallet.netWeight, grossWeight: pallet.grossWeight,
+    dimL: pallet.dimL, dimW: pallet.dimW, dimH: pallet.dimH,
+    remarks: pallet.remarks, cartonQty: pallet.cartonQty
+  };
+  saveObj('palletDefaults', defaults);
+  toast(`Defaults saved for ${pallet.sku}`);
+}
+
+/* ── Pallet Presets ─────────────────────────────────────── */
+function applyPalletPreset(palletId, presetId) {
+  if (!presetId) return;
+  const presets = loadStore('palletPresets');
+  const preset = presets.find(p => p.id === presetId);
+  const pallet = pallets.find(p => p.id === palletId);
+  if (!preset || !pallet) return;
+  pallet.dimL = preset.dimL;
+  pallet.dimW = preset.dimW;
+  pallet.dimH = preset.dimH;
+  if (preset.grossWeight > 0) pallet.grossWeight = preset.grossWeight;
+  renderPallets();
+  toast(`Applied "${preset.name}"`);
+}
+
+function saveCurrentAsPalletPreset(palletId) {
+  const pallet = pallets.find(p => p.id === palletId);
+  if (!pallet) return;
+  const name = prompt('Enter a name for this pallet preset:', `${pallet.dimL}×${pallet.dimW}×${pallet.dimH} cm`);
+  if (!name || !name.trim()) return;
+  const presets = loadStore('palletPresets');
+  presets.push({
+    id: uid(),
+    name: name.trim(),
+    dimL: parseFloat(pallet.dimL) || 0,
+    dimW: parseFloat(pallet.dimW) || 0,
+    dimH: parseFloat(pallet.dimH) || 0,
+    grossWeight: parseFloat(pallet.grossWeight) || 0,
+  });
+  saveStore('palletPresets', presets);
+  toast(`Preset "${name.trim()}" saved!`);
+  renderPallets(); // refresh all dropdowns
+}
+
+function openPalletPresetsModal() {
+  const presets = loadStore('palletPresets');
+  const rows = presets.map(p => `
+    <tr>
+      <td style="padding:10px 14px; font-weight:600;">${esc(p.name)}</td>
+      <td style="padding:10px 14px;">${p.dimL} × ${p.dimW} × ${p.dimH} cm</td>
+      <td style="padding:10px 14px;">${p.grossWeight > 0 ? p.grossWeight + ' kg' : '—'}</td>
+      <td style="padding:10px 14px;">
+        <button class="btn btn-danger btn-sm" onclick="deletePalletPreset('${p.id}')">Delete</button>
+      </td>
+    </tr>`).join('');
+  const html = `
+    <table class="data-table" style="width:100%;">
+      <thead><tr>
+        <th>Name</th><th>Dimensions (L×W×H)</th><th>Gross Wt</th><th></th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--gray-400);">No presets saved yet.</td></tr>'}</tbody>
+    </table>`;
+  openModal('Pallet Dimension Presets', html,
+    `<button class="btn btn-secondary" onclick="closeModal()">Close</button>`);
+}
+
+function deletePalletPreset(presetId) {
+  let presets = loadStore('palletPresets');
+  const preset = presets.find(p => p.id === presetId);
+  if (!preset) return;
+  if (!confirm(`Delete preset "${preset.name}"?`)) return;
+  presets = presets.filter(p => p.id !== presetId);
+  saveStore('palletPresets', presets);
+  toast(`Preset deleted`);
+  openPalletPresetsModal(); // refresh modal
+  renderPallets();          // refresh dropdowns
+}
+
+function renderPallets() {
+  const container = document.getElementById('palletsContainer');
+  const empty = document.getElementById('palletsEmpty');
+  const totalsCard = document.getElementById('palletTotalsCard');
+  if (!pallets.length) {
+    empty.classList.remove('hidden');
+    totalsCard.style.display = 'none';
+    container.innerHTML = '';
+    container.appendChild(empty);
+    return;
+  }
+  empty.classList.add('hidden');
+  totalsCard.style.display = '';
+  const presets = loadStore('palletPresets');
+  const presetOptions = `<option value="">— Select preset —</option>` +
+    presets.map(pr => `<option value="${pr.id}">${esc(pr.name)} (${pr.dimL}×${pr.dimW}×${pr.dimH})</option>`).join('');
+
+  container.innerHTML = pallets.map((p, i) => `
+    <div class="pallet-card">
+      <div class="pallet-card-header">
+        <span>Pallet ${i+1}${p.sku ? ' — ' + esc(p.sku) : ''}</span>
+        <div class="btn-group">
+          <button class="btn btn-outline btn-sm" onclick="savePalletDefaults('${p.id}')" title="Save dims as SKU default">SKU Default</button>
+          <button class="btn btn-secondary btn-sm" onclick="duplicatePallet('${p.id}')">Duplicate</button>
+          <button class="btn btn-danger btn-sm" onclick="removePallet('${p.id}')">&times;</button>
+        </div>
+      </div>
+      <div class="pallet-card-body">
+        <div class="form-grid">
+
+          <!-- Dimension Preset row -->
+          <div class="form-group" style="grid-column:1/-1;">
+            <label>📐 Dimension Preset</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <select style="flex:1; min-width:220px;" onchange="applyPalletPreset('${p.id}', this.value); this.value='';">
+                ${presetOptions}
+              </select>
+              <button class="btn btn-outline btn-sm" onclick="saveCurrentAsPalletPreset('${p.id}')" title="Save current dims as a new preset">💾 Save as Preset</button>
+            </div>
+          </div>
+
+          <!-- Product -->
+          <div class="form-group" style="grid-column:1/-1;">
+            <label>Product</label>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input type="text" readonly value="${p.sku ? esc(p.sku) + ' — ' + esc(p.productName) : 'No product selected'}" style="flex:1; cursor:pointer; background:var(--gray-50);" onclick="selectPalletProduct('${p.id}')">
+              <button class="btn btn-outline btn-sm" onclick="selectPalletProduct('${p.id}')">Choose</button>
+            </div>
+            ${p.hsCode ? `<div style="font-size:.82rem; color:var(--gray-500); margin-top:4px;">HS: ${esc(p.hsCode)} | Origin: ${esc(p.origin)}</div>` : ''}
+          </div>
+
+          <div class="form-group">
+            <label>Carton Qty</label>
+            <input type="number" min="0" value="${p.cartonQty}" onchange="updatePallet('${p.id}','cartonQty',this.value)">
+          </div>
+          <div class="form-group">
+            <label>Net Weight (kg)</label>
+            <input type="number" step="0.01" min="0" value="${p.netWeight}" onchange="updatePallet('${p.id}','netWeight',this.value)">
+          </div>
+          <div class="form-group">
+            <label>Gross Weight (kg)</label>
+            <input type="number" step="0.01" min="0" value="${p.grossWeight}" onchange="updatePallet('${p.id}','grossWeight',this.value)">
+          </div>
+          <div class="form-group">
+            <label>Length (cm)</label>
+            <input type="number" step="0.1" min="0" value="${p.dimL}" onchange="updatePallet('${p.id}','dimL',this.value)">
+          </div>
+          <div class="form-group">
+            <label>Width (cm)</label>
+            <input type="number" step="0.1" min="0" value="${p.dimW}" onchange="updatePallet('${p.id}','dimW',this.value)">
+          </div>
+          <div class="form-group">
+            <label>Height (cm)</label>
+            <input type="number" step="0.1" min="0" value="${p.dimH}" onchange="updatePallet('${p.id}','dimH',this.value)">
+          </div>
+          <div class="form-group" style="grid-column:1/-1;">
+            <label>Remarks</label>
+            <textarea rows="2" onchange="updatePallet('${p.id}','remarks',this.value)" placeholder="e.g. 203 pcs / carton&#10;12180 pcs / pallet">${esc(p.remarks)}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+  container.appendChild(empty);
+  updatePalletTotals();
+}
+
+function updatePalletTotals() {
+  let totalGross = 0, totalCBM = 0;
+  pallets.forEach(p => {
+    totalGross += p.grossWeight;
+    totalCBM += (p.dimL * p.dimW * p.dimH) / 1000000; // cm3 -> m3
+  });
+  document.getElementById('totalPallets').value = pallets.length;
+  document.getElementById('totalGrossWeight').value = totalGross.toFixed(2);
+  document.getElementById('totalCBM').value = totalCBM.toFixed(4);
+}
+
+/* ============================================================
+   DOCUMENT GENERATION — Commercial Invoice & Packing List
+   ============================================================ */
+function getLetterheads() {
+  const list = loadStore('letterheads');
+  // Migrate legacy single letterhead on first call
+  if (!list.length) {
+    const legacy = localStorage.getItem(STORE_KEYS.letterhead);
+    if (legacy) {
+      const migrated = [{ id: uid(), name: 'Default Letterhead', data: legacy }];
+      saveStore('letterheads', migrated);
+      localStorage.removeItem(STORE_KEYS.letterhead);
+      return migrated;
+    }
+  }
+  return list;
+}
+
+/* Builds the signature/stamp block for document footers.
+   stamp-only  → stamp centered, bottom half overlapping the line
+   both        → signature + stamp, both sitting on top of the line
+   sig-only    → signature above the line
+   neither     → blank space + line                                 */
+function buildSigBlock(sigImg, stampImg) {
+  const line = `<div class="signature-line" style="min-width:160px; margin-top:0; position:relative; z-index:0;">Authorized Signature</div>`;
+
+  if (!sigImg && !stampImg) {
+    return `<div style="text-align:center; min-width:180px;">
+      <div style="height:18mm;"></div>${line}</div>`;
+  }
+
+  if (sigImg && !stampImg) {
+    // Signature only — sits just above the line
+    return `<div style="text-align:center; min-width:180px;">
+      <div style="height:6mm;"></div>
+      <img src="${sigImg}" alt="sig" style="max-height:14mm; max-width:56mm; object-fit:contain; display:block; margin:0 auto 0; position:relative; z-index:1;">
+      ${line}</div>`;
+  }
+
+  if (!sigImg && stampImg) {
+    // Stamp only — centered, sitting fully above the line
+    return `<div style="text-align:center; min-width:180px;">
+      <div style="height:4mm;"></div>
+      <img src="${stampImg}" alt="stamp" style="width:22mm; height:22mm; object-fit:contain; opacity:.88; display:block; margin:0 auto 0;">
+      ${line}</div>`;
+  }
+
+  // Both — signature centered above line, stamp to the right, both fully above the line
+  return `<div style="position:relative; text-align:center; min-width:230px; padding-right:26mm;">
+    <div style="height:2mm;"></div>
+    <img src="${sigImg}" alt="sig" style="max-height:14mm; max-width:52mm; object-fit:contain; display:block; margin:0 auto 0;">
+    <img src="${stampImg}" alt="stamp" style="position:absolute; right:0; bottom:8mm; width:22mm; height:22mm; object-fit:contain; opacity:.88;">
+    ${line}
+  </div>`;
+}
+
+function getLetterheadHTML() {
+  const list = getLetterheads();
+  const lh = list.find(l => l.id === selectedLetterheadId);
+  if (!lh) return '';
+  return `<div class="doc-letterhead"><img src="${lh.data}" alt="Letterhead"></div>`;
+}
+
+function renderLetterheadSelector() {
+  const list = getLetterheads();
+  const sel = document.getElementById('letterheadSelect');
+  if (!sel) return;
+  sel.innerHTML = `<option value="">— No Letterhead —</option>` +
+    list.map(l => `<option value="${l.id}" ${l.id === selectedLetterheadId ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
+}
+
+function onLetterheadSelect(val) {
+  selectedLetterheadId = val || null;
+}
+
+function addLetterhead(name, dataUrl) {
+  const list = getLetterheads();
+  list.push({ id: uid(), name, data: dataUrl });
+  saveStore('letterheads', list);
+  renderLetterheadSelector();
+  renderLetterheadsSettings();
+  toast(`Letterhead "${name}" saved`);
+}
+
+function removeLetterheadById(id) {
+  let list = getLetterheads();
+  const lh = list.find(l => l.id === id);
+  if (!lh || !confirm(`Remove "${lh.name}"?`)) return;
+  list = list.filter(l => l.id !== id);
+  saveStore('letterheads', list);
+  if (selectedLetterheadId === id) selectedLetterheadId = null;
+  renderLetterheadSelector();
+  renderLetterheadsSettings();
+  toast('Letterhead removed');
+}
+
+function renameLetterhead(id) {
+  const list = getLetterheads();
+  const lh = list.find(l => l.id === id);
+  if (!lh) return;
+  const name = prompt('Rename letterhead:', lh.name);
+  if (!name || !name.trim()) return;
+  lh.name = name.trim();
+  saveStore('letterheads', list);
+  renderLetterheadSelector();
+  renderLetterheadsSettings();
+}
+
+function renderLetterheadsSettings() {
+  const container = document.getElementById('letterheadsSettingsList');
+  if (!container) return;
+  const list = getLetterheads();
+  if (!list.length) {
+    container.innerHTML = `<p style="color:var(--gray-400); font-size:.88rem;">No letterheads saved yet. Upload one below.</p>`;
+    return;
+  }
+  container.innerHTML = list.map(l => `
+    <div style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--gray-100);">
+      <img src="${l.data}" alt="${esc(l.name)}" style="height:36px; max-width:140px; object-fit:contain; border:1px solid var(--gray-200); border-radius:4px; padding:2px;">
+      <span style="flex:1; font-weight:600; font-size:.9rem;">${esc(l.name)}</span>
+      <button class="btn btn-outline btn-sm" onclick="renameLetterhead('${l.id}')">Rename</button>
+      <button class="btn btn-danger btn-sm" onclick="removeLetterheadById('${l.id}')">Remove</button>
+    </div>`).join('');
+}
+
+function getShipmentData() {
+  return {
+    mode: currentMode,
+    shipper: getSelectedAddress('shipper'),
+    buyer: getSelectedAddress('buyer'),
+    notify: getSelectedAddress('notify'),
+    pickup: getSelectedAddress('pickup'),
+    delivery: getSelectedAddress('delivery'),
+    invoiceDate: val('invoiceDate'),
+    invoiceNumber: val('invoiceNumber'),
+    puRef: val('puRef'),
+    carrier: val('carrier'),
+    containerNumber: val('containerNumber'),
+    sealNumber: val('sealNumber'),
+    consigneeType: val('consigneeType'),
+    shippingTerm: document.getElementById('shippingTerm')?.value || '',
+    currency: document.getElementById('currency')?.value || 'USD',
+    lineItems: [...lineItems],
+    pallets: [...pallets],
+    remarks: val('shipmentRemarks'),
+    companyName: loadObj('settings').companyName || '',
+    authText: loadObj('settings').authText || 'I declare that the above information is true and correct to the best of my knowledge.'
+  };
+}
+
+function generateCI(data) {
+  const d = data;
+  const isSea = d.mode === 'SEA';
+  const currency = d.currency;
+  let totalPcs = 0, totalWt = 0, totalVal = 0;
+  d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
+  // Sync CI weight with PL: use pallet gross weights when available
+  if (d.pallets && d.pallets.length > 0) {
+    totalWt = d.pallets.reduce((sum, p) => sum + (p.grossWeight || 0), 0);
+  }
+
+  // Header boxes
+  const hasNotify = d.notify && formatAddress(d.notify).trim();
+  const buyerLabel = isSea ? 'Sold To / Buyer' : 'Importer / Delivery Address';
+  let headerGrid;
+  if (hasNotify) {
+    headerGrid = `
+      <div class="doc-header-grid cols-3">
+        <div class="doc-header-box"><div class="box-label">Shipper</div><div style="white-space:pre-line;">${esc(formatAddress(d.shipper))}</div></div>
+        <div class="doc-header-box"><div class="box-label">${buyerLabel}</div><div style="white-space:pre-line;">${esc(formatAddress(d.buyer))}</div></div>
+        <div class="doc-header-box"><div class="box-label">Notify Party</div><div style="white-space:pre-line;">${esc(formatAddress(d.notify))}</div></div>
+      </div>`;
+  } else {
+    headerGrid = `
+      <div class="doc-header-grid cols-2">
+        <div class="doc-header-box"><div class="box-label">Shipper</div><div style="white-space:pre-line;">${esc(formatAddress(d.shipper))}</div></div>
+        <div class="doc-header-box"><div class="box-label">${buyerLabel}</div><div style="white-space:pre-line;">${esc(formatAddress(d.buyer))}</div></div>
+      </div>`;
+  }
+
+  const hasPickup   = d.pickup   && formatAddress(d.pickup).trim();
+  const hasDelivery = d.delivery && formatAddress(d.delivery).trim();
+  const pickupBox   = hasPickup   ? `<div class="doc-header-box"><div class="box-label">Pickup Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.pickup))}</div></div>` : "";
+  const deliveryBox = hasDelivery ? `<div class="doc-header-box"><div class="box-label">Delivery Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.delivery))}</div></div>` : "";
+  const addrCols    = (hasPickup && hasDelivery) ? "cols-2" : "cols-1";
+  const addressRow  = (hasPickup || hasDelivery) ? `<div class="doc-header-grid ${addrCols}">${pickupBox}${deliveryBox}</div>` : "";
+
+  // Fields
+  let fieldsHTML = `
+    <div class="doc-fields">
+      <div class="field"><span class="field-label">Invoice Date:</span><span>${esc(d.invoiceDate)}</span></div>
+      <div class="field"><span class="field-label">Invoice Number:</span><span>${esc(d.invoiceNumber)}</span></div>
+      <div class="field"><span class="field-label">PU REF#:</span><span>${esc(d.puRef)}</span></div>
+      <div class="field"><span class="field-label">Carrier:</span><span>${esc(d.carrier)}</span></div>
+      <div class="field"><span class="field-label">Mode of Transport:</span><span>${d.mode}</span></div>`;
+  if (isSea) {
+    fieldsHTML += `
+      <div class="field"><span class="field-label">Container Number:</span><span>${esc(d.containerNumber)}</span></div>
+      <div class="field"><span class="field-label">Seal Number:</span><span>${esc(d.sealNumber)}</span></div>
+      <div class="field"><span class="field-label">Consignee Type:</span><span>${esc(d.consigneeType)}</span></div>`;
+  }
+  fieldsHTML += '</div>';
+
+  // Table
+  const rows = d.lineItems.map(li => {
+    const netWt = (li.qty * li.unitWeight);
+    const total = (li.qty * li.unitValue);
+    return `
+      <tr>
+        <td>
+          <div class="doc-goods-desc">
+            <div class="sku">${esc(li.sku)} - ${esc(li.name)}</div>
+            <div class="detail">HS Code: ${esc(li.hsCode)} | Country of Origin: ${esc(li.origin)}</div>
+          </div>
+        </td>
+        <td class="text-right">${li.qty.toLocaleString()}</td>
+        <td>pcs</td>
+        <td class="text-right">${netWt.toFixed(2)}</td>
+        <td class="text-right">${li.unitValue.toFixed(2)}</td>
+        <td class="text-right">${total.toFixed(2)}</td>
+      </tr>`;
+  }).join('');
+
+  const tableHTML = `
+    <table class="doc-table">
+      <thead>
+        <tr>
+          <th>Description of Goods</th>
+          <th style="text-align:right;">No. of Items</th>
+          <th>Measurement</th>
+          <th style="text-align:right;">Net Weight (kg)</th>
+          <th style="text-align:right;">Unit Value (${currency})</th>
+          <th style="text-align:right;">Total for Customs (${currency})</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  const totalsHTML = `
+    <div class="doc-totals">
+      <div class="total-line"><span>Shipping Term:</span><span><strong>${esc(d.shippingTerm)}</strong></span></div>
+      <div class="total-line"><span>Total Weight:</span><span><strong>${totalWt.toFixed(2)} KG</strong></span></div>
+      <div class="total-line grand"><span>Total Value (${currency}):</span><span>${totalVal.toFixed(2)}</span></div>
+    </div>`;
+
+  const declaration = `
+    <div class="doc-declaration">
+      ${esc(d.authText)} We authorize <strong>${esc(d.carrier)}</strong> as our customs clearance and delivery agent regarding this shipment.
+    </div>`;
+
+  const sigImg   = localStorage.getItem(STORE_KEYS.signature);
+  const stampImg = localStorage.getItem(STORE_KEYS.stamp);
+  const sigBlock = buildSigBlock(sigImg, stampImg);
+
+  const footer = `
+    <div class="doc-footer">
+      <div>
+        <div><strong>Date Shipped:</strong> ${esc(d.invoiceDate)}</div>
+        <div><strong>${esc(d.companyName)}</strong></div>
+      </div>
+      ${sigBlock}
+    </div>`;
+
+  const remarksHTML = d.remarks ? `
+    <div class="doc-declaration" style="border-color:#bbb;">
+      <strong>Remarks / Special Instructions:</strong><br>
+      <span style="white-space:pre-line;">${esc(d.remarks)}</span>
+    </div>` : '';
+
+  return `
+    ${getLetterheadHTML()}
+    <div class="doc-title">Commercial Invoice</div>
+    ${headerGrid}
+    ${addressRow}
+    ${fieldsHTML}
+    ${tableHTML}
+    ${totalsHTML}
+    ${declaration}
+    ${remarksHTML}
+    ${footer}`;
+}
+
+function generatePL(data) {
+  const d = data;
+  const isSea = d.mode === 'SEA';
+
+  // Header boxes - sender, importer, notify
+  const hasNotify = d.notify && formatAddress(d.notify).trim();
+  let headerGrid;
+  if (hasNotify) {
+    headerGrid = `
+      <div class="doc-header-grid cols-3">
+        <div class="doc-header-box"><div class="box-label">Sender</div><div style="white-space:pre-line;">${esc(formatAddress(d.shipper))}</div></div>
+        <div class="doc-header-box"><div class="box-label">Importer / Sold To</div><div style="white-space:pre-line;">${esc(formatAddress(d.buyer))}</div></div>
+        <div class="doc-header-box"><div class="box-label">Notify Party</div><div style="white-space:pre-line;">${esc(formatAddress(d.notify))}</div></div>
+      </div>`;
+  } else {
+    headerGrid = `
+      <div class="doc-header-grid cols-2">
+        <div class="doc-header-box"><div class="box-label">Sender</div><div style="white-space:pre-line;">${esc(formatAddress(d.shipper))}</div></div>
+        <div class="doc-header-box"><div class="box-label">Importer / Sold To</div><div style="white-space:pre-line;">${esc(formatAddress(d.buyer))}</div></div>
+      </div>`;
+  }
+
+  const hasPickup   = d.pickup   && formatAddress(d.pickup).trim();
+  const hasDelivery = d.delivery && formatAddress(d.delivery).trim();
+  const pickupBox   = hasPickup   ? `<div class="doc-header-box"><div class="box-label">Pickup Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.pickup))}</div></div>` : "";
+  const deliveryBox = hasDelivery ? `<div class="doc-header-box"><div class="box-label">Delivery Address</div><div style="white-space:pre-line;">${esc(formatAddress(d.delivery))}</div></div>` : "";
+  const addrCols    = (hasPickup && hasDelivery) ? "cols-2" : "cols-1";
+  const addressRow  = (hasPickup || hasDelivery) ? `<div class="doc-header-grid ${addrCols}">${pickupBox}${deliveryBox}</div>` : "";
+
+  // Fields
+  let fieldsHTML = `
+    <div class="doc-fields">
+      <div class="field"><span class="field-label">Date:</span><span>${esc(d.invoiceDate)}</span></div>
+      <div class="field"><span class="field-label">PO Number:</span><span>${esc(d.invoiceNumber)}</span></div>
+      <div class="field"><span class="field-label">Reference#:</span><span>${esc(d.puRef)}</span></div>`;
+  if (isSea) {
+    fieldsHTML += `
+      <div class="field"><span class="field-label">Container Number:</span><span>${esc(d.containerNumber)}</span></div>
+      <div class="field"><span class="field-label">Seal Number:</span><span>${esc(d.sealNumber)}</span></div>`;
+  }
+  fieldsHTML += '</div>';
+
+  // Pallet table
+  let totalGross = 0, totalNet = 0, totalCBM = 0;
+  const rows = d.pallets.map((p, i) => {
+    const cbm = (p.dimL * p.dimW * p.dimH) / 1000000;
+    totalGross += p.grossWeight;
+    totalNet += p.netWeight;
+    totalCBM += cbm;
+    return `
+      <tr>
+        <td><strong>Pallet ${i+1}</strong></td>
+        <td>
+          <div class="doc-goods-desc">
+            <div class="sku">${esc(p.sku)} - ${esc(p.productName)}</div>
+            <div class="detail">HS Code: ${esc(p.hsCode)} | Origin: ${esc(p.origin)}</div>
+          </div>
+        </td>
+        <td class="text-right">${p.cartonQty}</td>
+        <td class="text-right">${p.netWeight.toFixed(2)}</td>
+        <td class="text-right">${p.grossWeight.toFixed(2)}</td>
+        <td>${p.dimL} x ${p.dimW} x ${p.dimH} cm</td>
+        <td><div class="doc-pallet-remarks">${esc(p.remarks)}</div></td>
+      </tr>`;
+  }).join('');
+
+  const tableHTML = `
+    <table class="doc-table">
+      <thead>
+        <tr>
+          <th>Pallet Ref#</th>
+          <th>Product Details</th>
+          <th style="text-align:right;">Carton Qty</th>
+          <th style="text-align:right;">Net Weight (kgs)</th>
+          <th style="text-align:right;">Gross Weight (kgs)</th>
+          <th>Pallet Dimensions (cm)</th>
+          <th>Remarks</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  const totalsHTML = `
+    <div class="doc-totals">
+      <div class="total-line"><span>Shipping Term:</span><span><strong>${esc(d.shippingTerm)}</strong></span></div>
+      <div class="total-line"><span>Total Pallets:</span><span><strong>${d.pallets.length}</strong></span></div>
+      <div class="total-line"><span>Total Gross Weight:</span><span><strong>${totalGross.toFixed(2)} KG</strong></span></div>
+      <div class="total-line grand"><span>Total CBM (m&sup3;):</span><span>${totalCBM.toFixed(4)}</span></div>
+    </div>`;
+
+  const sigImgPL   = localStorage.getItem(STORE_KEYS.signature);
+  const stampImgPL = localStorage.getItem(STORE_KEYS.stamp);
+  const sigBlockPL = buildSigBlock(sigImgPL, stampImgPL);
+
+  const footer = `
+    <div class="doc-footer">
+      <div><strong>${esc(d.companyName)}</strong></div>
+      ${sigBlockPL}
+    </div>`;
+
+  const remarksHTML = d.remarks ? `
+    <div class="doc-declaration" style="border-color:#bbb;">
+      <strong>Remarks / Special Instructions:</strong><br>
+      <span style="white-space:pre-line;">${esc(d.remarks)}</span>
+    </div>` : '';
+
+  return `
+    ${getLetterheadHTML()}
+    ${headerGrid}
+    ${addressRow}
+    <div class="doc-title">Packing List</div>
+    ${fieldsHTML}
+    ${tableHTML}
+    ${totalsHTML}
+    ${remarksHTML}
+    ${footer}`;
+}
+
+function generatePreview() {
+  const data = getShipmentData();
+  const container = document.getElementById('previewContainer');
+  container.innerHTML = `
+    <div class="print-page-preview">${generateCI(data)}</div>
+    <div class="print-page-preview" style="margin-top:30px;">${generatePL(data)}</div>`;
+  container.classList.add('visible');
+  toast('Preview generated');
+}
+
+/* ============================================================
+   EXPORT FORMAT SELECTOR
+   ============================================================ */
+let currentExportFormat = 'pdf';
+
+const EXPORT_HINTS = {
+  pdf:   'Opens browser print dialog — choose "Save as PDF"',
+  excel: 'Downloads a .xls file — opens directly in Excel',
+  word:  'Downloads a .doc file — opens directly in Word',
+};
+
+function setExportFormat(fmt, btn) {
+  currentExportFormat = fmt;
+  document.querySelectorAll('#exportFormatToggle button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('exportFormatHint').textContent = EXPORT_HINTS[fmt];
+}
+
+function exportDoc(which) {
+  const data = getShipmentData();
+  const ref = (data.invoiceNumber || data.puRef || 'shipment').replace(/[^a-zA-Z0-9_\-]/g, '_');
+  if (currentExportFormat === 'pdf') {
+    exportPDF(data, which);
+  } else if (currentExportFormat === 'excel') {
+    exportExcel(data, which, ref);
+  } else if (currentExportFormat === 'word') {
+    exportWord(data, which, ref);
+  }
+}
+
+/* ---- PDF (print dialog) ---- */
+function exportPDF(data, which) {
+  const printPage = document.getElementById('page-print');
+  if (which === 'ci')   printPage.innerHTML = `<div class="print-page print-doc">${generateCI(data)}</div>`;
+  if (which === 'pl')   printPage.innerHTML = `<div class="print-page print-doc">${generatePL(data)}</div>`;
+  if (which === 'both') printPage.innerHTML = `<div class="print-page print-doc">${generateCI(data)}</div><div class="print-page print-doc">${generatePL(data)}</div>`;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  printPage.classList.add('active');
+  setTimeout(() => {
+    window.print();
+    navigateTo('shipment');
+    switchShipmentTab(document.querySelector('[data-tab="tab-preview"]'));
+  }, 200);
+}
+
+/* ---- EXCEL (.xls via HTML table) ---- */
+/* ============================================================
+   SHARED TABLE-BASED DOCUMENT GENERATOR  (Word + Excel)
+   Uses inline-styled HTML tables — no CSS Grid / Flexbox
+   so both Word and Excel render it correctly with letterhead.
+   ============================================================ */
+
+function _getLhImgTag(maxH) {
+  const list = getLetterheads();
+  const lh = list.find(l => l.id === selectedLetterheadId);
+  if (!lh) return '';
+  return `<img src="${lh.data}" alt="" style="max-height:${maxH}px;max-width:320px;display:block;margin:0 auto;">`;
+}
+
+function buildDocBodyHTML(d, isCI, includeSigStamp) {
+  const isSea  = d.mode === 'SEA';
+  const curr   = d.currency;
+  const FA     = a => esc(formatAddress(a));
+
+  /* ---- style helpers ---- */
+  const BOX = (label, content) =>
+    `<td style="border:1px solid #999;padding:3px 6px;vertical-align:top;">
+       <div style="font-weight:bold;font-size:7.5pt;text-transform:uppercase;color:#444;border-bottom:1px solid #ccc;padding-bottom:2px;margin-bottom:3px;">${label}</div>
+       <div style="white-space:pre-wrap;font-size:9pt;line-height:1.4;">${content}</div>
+     </td>`;
+
+  const FIELD = (lbl, val) =>
+    `<td style="border:1px solid #ccc;padding:2px 5px;font-weight:bold;font-size:8.5pt;background:#f1f5f9;white-space:nowrap;">${lbl}</td>
+     <td style="border:1px solid #ccc;padding:2px 5px;font-size:8.5pt;">${esc(val)}</td>`;
+
+  const TH  = s => `<th style="background:#1a2744;color:#fff;font-weight:bold;border:1px solid #777;padding:2px 5px;font-size:8pt;text-align:left;">${s}</th>`;
+  const THR = s => `<th style="background:#1a2744;color:#fff;font-weight:bold;border:1px solid #777;padding:2px 5px;font-size:8pt;text-align:right;">${s}</th>`;
+  const TD  = (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;vertical-align:top;${extra}">${s}</td>`;
+  const TDR = (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;vertical-align:top;text-align:right;${extra}">${s}</td>`;
+  const TOT = (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;font-weight:bold;background:#f1f5f9;${extra}">${s}</td>`;
+  const TOTR= (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;font-weight:bold;background:#f1f5f9;text-align:right;${extra}">${s}</td>`;
+
+  /* ---- Letterhead ---- */
+  const lhTag = _getLhImgTag(65);
+  const letterhead = lhTag
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;"><tr><td style="text-align:center;border:none;">${lhTag}</td></tr></table>`
+    : '';
+
+  /* ---- Title ---- */
+  const titleBlock =
+    `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+       <tr><td style="border:none;text-align:center;font-size:14pt;font-weight:bold;text-transform:uppercase;border-bottom:2px solid #333;padding-bottom:4px;">${isCI ? 'COMMERCIAL INVOICE' : 'PACKING LIST'}</td></tr>
+     </table>`;
+
+  /* ---- Header boxes (Shipper / Buyer / Notify) ---- */
+  const hasNotify    = d.notify   && formatAddress(d.notify).trim();
+  const buyerLabel   = isCI ? (isSea ? 'Sold To / Buyer' : 'Importer / Delivery Address') : 'Importer / Sold To';
+  const shipperLabel = isCI ? 'Shipper' : 'Sender';
+  const headerCols   = hasNotify
+    ? `<colgroup><col width="33%"><col width="34%"><col width="33%"></colgroup>
+       <tr>${BOX(shipperLabel,FA(d.shipper))}${BOX(buyerLabel,FA(d.buyer))}${BOX('Notify Party',FA(d.notify))}</tr>`
+    : `<colgroup><col width="50%"><col width="50%"></colgroup>
+       <tr>${BOX(shipperLabel,FA(d.shipper))}${BOX(buyerLabel,FA(d.buyer))}</tr>`;
+  const headerTable =
+    `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">${headerCols}</table>`;
+
+  /* ---- Address row (Pickup / Delivery — hidden when empty) ---- */
+  const hasPickup   = d.pickup   && formatAddress(d.pickup).trim();
+  const hasDelivery = d.delivery && formatAddress(d.delivery).trim();
+  let addrTable = '';
+  if (hasPickup || hasDelivery) {
+    let cols, cells;
+    if (hasPickup && hasDelivery) {
+      cols  = `<colgroup><col width="50%"><col width="50%"></colgroup>`;
+      cells = `${BOX('Pickup Address',FA(d.pickup))}${BOX('Delivery Address',FA(d.delivery))}`;
+    } else if (hasPickup) {
+      cols  = `<colgroup><col width="100%"></colgroup>`;
+      cells = BOX('Pickup Address', FA(d.pickup));
+    } else {
+      cols  = `<colgroup><col width="100%"></colgroup>`;
+      cells = BOX('Delivery Address', FA(d.delivery));
+    }
+    addrTable = `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">${cols}<tr>${cells}</tr></table>`;
+  }
+
+  /* ---- Fields ---- */
+  let fieldRows = [];
+  if (isCI) {
+    fieldRows.push(`<tr>${FIELD('Invoice Date', d.invoiceDate)}${FIELD('Invoice Number', d.invoiceNumber)}</tr>`);
+    fieldRows.push(`<tr>${FIELD('PU REF#', d.puRef)}${FIELD('Carrier', d.carrier)}</tr>`);
+    fieldRows.push(`<tr>${FIELD('Mode of Transport', d.mode)}${FIELD('Shipping Term', d.shippingTerm)}</tr>`);
+    if (isSea) {
+      fieldRows.push(`<tr>${FIELD('Container Number', d.containerNumber)}${FIELD('Seal Number', d.sealNumber)}</tr>`);
+      fieldRows.push(`<tr>${FIELD('Consignee Type', d.consigneeType)}<td style="border:none;"></td><td style="border:none;"></td></tr>`);
+    }
+  } else {
+    fieldRows.push(`<tr>${FIELD('Date', d.invoiceDate)}${FIELD('PO Number', d.invoiceNumber)}</tr>`);
+    fieldRows.push(`<tr>${FIELD('Reference#', d.puRef)}${FIELD('Shipping Term', d.shippingTerm)}</tr>`);
+    if (isSea) fieldRows.push(`<tr>${FIELD('Container Number', d.containerNumber)}${FIELD('Seal Number', d.sealNumber)}</tr>`);
+  }
+  const fieldsTable =
+    `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">${fieldRows.join('')}</table>`;
+
+  /* ---- Line items / Pallets table ---- */
+  let itemsTable = '';
+  if (isCI) {
+    let totalPcs = 0, totalWt = 0, totalVal = 0;
+    d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
+    if (d.pallets && d.pallets.length > 0) totalWt = d.pallets.reduce((s, p) => s + (p.grossWeight || 0), 0);
+    const itemRows = d.lineItems.map(li =>
+      `<tr>
+        ${TD(`<strong>${esc(li.sku)} - ${esc(li.name)}</strong><br><span style="color:#555;font-size:7.5pt;">HS Code: ${esc(li.hsCode)} | Origin: ${esc(li.origin)}</span>`)}
+        ${TDR(li.qty.toLocaleString())}
+        ${TD('pcs')}
+        ${TDR((li.qty * li.unitWeight).toFixed(2))}
+        ${TDR(li.unitValue.toFixed(2))}
+        ${TDR((li.qty * li.unitValue).toFixed(2))}
+      </tr>`).join('');
+    itemsTable = `
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">
+        <thead><tr>${TH('Description of Goods')}${THR('No. of Items')}${TH('Measurement')}${THR('Net Weight (kg)')}${THR(`Unit Value (${curr})`)}${THR(`Total for Customs (${curr})`)}</tr></thead>
+        <tbody>${itemRows}</tbody>
+        <tfoot><tr>${TOT('TOTALS','font-size:8.5pt;')}${TOTR(totalPcs.toLocaleString()+' pcs')}${TOT('')}${TOTR(totalWt.toFixed(2)+' kg')}${TOT('')}${TOTR(totalVal.toFixed(2)+' '+curr)}</tr></tfoot>
+      </table>`;
+  } else {
+    let totalNet = 0, totalGross = 0, totalCBM = 0;
+    d.pallets.forEach(p => {
+      totalNet   += parseFloat(p.netWeight)  || 0;
+      totalGross += parseFloat(p.grossWeight) || 0;
+      totalCBM   += ((parseFloat(p.dimL)||0)*(parseFloat(p.dimW)||0)*(parseFloat(p.dimH)||0))/1000000;
+    });
+    const palletRows = d.pallets.map((p, i) =>
+      `<tr>
+        ${TD(`<strong>Pallet ${i+1}</strong>`)}
+        ${TD(`<strong>${esc(p.sku)} - ${esc(p.productName)}</strong><br><span style="color:#555;font-size:7.5pt;">HS: ${esc(p.hsCode)} | Origin: ${esc(p.origin)}</span>`)}
+        ${TDR(p.cartonQty)}
+        ${TDR(parseFloat(p.netWeight).toFixed(2))}
+        ${TDR(parseFloat(p.grossWeight).toFixed(2))}
+        ${TD(`${p.dimL} x ${p.dimW} x ${p.dimH} cm`)}
+        ${TD(esc(p.remarks))}
+      </tr>`).join('');
+    itemsTable = `
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">
+        <thead><tr>${TH('Pallet Ref#')}${TH('Product Details')}${THR('Carton Qty')}${THR('Net Weight (kgs)')}${THR('Gross Weight (kgs)')}${TH('Pallet Dimensions (cm)')}${TH('Remarks')}</tr></thead>
+        <tbody>${palletRows}</tbody>
+        <tfoot><tr>${TOT(`TOTALS — ${d.pallets.length} pallets`,'font-size:8.5pt;')}${TOT('')}${TOT('')}${TOTR(totalNet.toFixed(2)+' kg')}${TOTR(totalGross.toFixed(2)+' kg')}${TOT('')}${TOT('')}</tr></tfoot>
+      </table>`;
+  }
+
+  /* ---- Totals summary ---- */
+  let totalsBlock = '';
+  if (isCI) {
+    let totalWt = 0, totalVal = 0;
+    d.lineItems.forEach(li => { totalWt += li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
+    if (d.pallets && d.pallets.length > 0) totalWt = d.pallets.reduce((s, p) => s + (p.grossWeight || 0), 0);
+    totalsBlock = `
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+        <tr><td style="border:none;width:60%;"></td><td style="border:none;text-align:right;font-size:9pt;">Shipping Term:&nbsp;<strong>${esc(d.shippingTerm)}</strong></td></tr>
+        <tr><td style="border:none;"></td><td style="border:none;text-align:right;font-size:9pt;">Total Weight:&nbsp;<strong>${totalWt.toFixed(2)} KG</strong></td></tr>
+        <tr><td style="border:none;"></td><td style="border:none;text-align:right;font-size:10pt;font-weight:bold;border-top:2px solid #333;padding-top:2px;">Total Value (${curr}):&nbsp;${totalVal.toFixed(2)}</td></tr>
+      </table>`;
+  } else {
+    let totalGross = 0, totalCBM = 0;
+    d.pallets.forEach(p => {
+      totalGross += parseFloat(p.grossWeight) || 0;
+      totalCBM   += ((parseFloat(p.dimL)||0)*(parseFloat(p.dimW)||0)*(parseFloat(p.dimH)||0))/1000000;
+    });
+    totalsBlock = `
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+        <tr><td style="border:none;width:60%;"></td><td style="border:none;text-align:right;font-size:9pt;">Shipping Term:&nbsp;<strong>${esc(d.shippingTerm)}</strong></td></tr>
+        <tr><td style="border:none;"></td><td style="border:none;text-align:right;font-size:9pt;">Total Pallets:&nbsp;<strong>${d.pallets.length}</strong></td></tr>
+        <tr><td style="border:none;"></td><td style="border:none;text-align:right;font-size:9pt;">Total Gross Weight:&nbsp;<strong>${totalGross.toFixed(2)} KG</strong></td></tr>
+        <tr><td style="border:none;"></td><td style="border:none;text-align:right;font-size:9pt;border-top:2px solid #333;padding-top:2px;">Total CBM (m³):&nbsp;${totalCBM.toFixed(4)}</td></tr>
+      </table>`;
+  }
+
+  /* ---- Declaration ---- */
+  const declaration = isCI
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+         <tr><td style="border:1px solid #999;padding:3px 5px;font-size:8.5pt;">${esc(d.authText)} We authorize <strong>${esc(d.carrier)}</strong> as our customs clearance and delivery agent.</td></tr>
+       </table>`
+    : '';
+
+  /* ---- Remarks ---- */
+  const remarks = d.remarks
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+         <tr><td style="border:1px solid #ccc;padding:3px 5px;font-size:8.5pt;"><strong>Remarks / Special Instructions:</strong><br>${esc(d.remarks).replace(/\n/g,'<br>')}</td></tr>
+       </table>`
+    : '';
+
+  /* ---- Footer / Signature ---- */
+  let sigCell = `<td style="border:none;text-align:center;width:180px;vertical-align:bottom;">
+    <div style="margin-top:20mm;border-top:1px solid #333;padding-top:3px;font-size:9pt;">Authorized Signature</div>
+  </td>`;
+  if (includeSigStamp) {
+    const sigData   = localStorage.getItem(STORE_KEYS.signature);
+    const stampData = localStorage.getItem(STORE_KEYS.stamp);
+    const imgs = [
+      sigData   ? `<img src="${sigData}"   style="max-height:50px;max-width:120px;">` : '',
+      stampData ? `<img src="${stampData}" style="max-height:50px;max-width:80px;margin-left:8px;">` : '',
+    ].filter(Boolean).join('');
+    sigCell = `<td style="border:none;text-align:center;width:200px;vertical-align:bottom;">
+      ${imgs ? `<div style="margin-bottom:2px;">${imgs}</div>` : '<div style="margin-top:20mm;"></div>'}
+      <div style="border-top:1px solid #333;padding-top:3px;font-size:9pt;">Authorized Signature</div>
+    </td>`;
+  }
+  const footer =
+    `<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6mm;">
+       <tr>
+         <td style="border:none;font-size:9pt;vertical-align:bottom;">
+           ${isCI ? `<strong>Date Shipped:</strong> ${esc(d.invoiceDate)}<br>` : ''}
+           <strong>${esc(d.companyName)}</strong>
+         </td>
+         ${sigCell}
+       </tr>
+     </table>`;
+
+  return letterhead + titleBlock + headerTable + addrTable + fieldsTable + itemsTable + totalsBlock + declaration + remarks + footer;
+}
+
+/* ---- EXCEL (.xls via HTML) ---- */
+function exportExcel(data, which, ref) {
+  const docs = [];
+  if (which === 'ci' || which === 'both') docs.push({ name: 'Commercial_Invoice', isCI: true });
+  if (which === 'pl' || which === 'both') docs.push({ name: 'Packing_List',       isCI: false });
+
+  docs.forEach(doc => {
+    const body = buildDocBodyHTML(data, doc.isCI, false);
+    const content = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8">
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>
+<x:ExcelWorksheet><x:Name>${doc.isCI ? 'Commercial Invoice' : 'Packing List'}</x:Name>
+<x:WorksheetOptions><x:Print><x:FitWidth/><x:FitHeight/></x:Print></x:WorksheetOptions>
+</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<style>
+  body { font-family: Arial, sans-serif; font-size: 10pt; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { vertical-align: top; }
+</style></head>
+<body style="padding:8px;">${body}</body></html>`;
+    downloadBlob(content, `${ref}_${doc.name}.xls`, 'application/vnd.ms-excel');
+  });
+  toast('Excel file(s) downloaded');
+}
+
+/* ---- WORD (.doc via HTML) ---- */
+function exportWord(data, which, ref) {
+  const docs = [];
+  if (which === 'ci' || which === 'both') docs.push({ name: 'Commercial_Invoice', isCI: true });
+  if (which === 'pl' || which === 'both') docs.push({ name: 'Packing_List',       isCI: false });
+
+  docs.forEach(doc => {
+    const body = buildDocBodyHTML(data, doc.isCI, true);
+    const content = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8">
+<!--[if gte mso 9]><xml><w:WordDocument>
+<w:View>Print</w:View><w:Zoom>90</w:Zoom>
+<w:DoNotOptimizeForBrowser/>
+</w:WordDocument></xml><![endif]-->
+<style>
+  @page { size: A4; margin: 1.5cm; }
+  body  { font-family: Arial, sans-serif; font-size: 10pt; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { vertical-align: top; }
+  img { display: block; }
+</style></head>
+<body>${body}</body></html>`;
+    downloadBlob(content, `${ref}_${doc.name}.doc`, 'application/msword');
+  });
+  toast('Word file(s) downloaded');
+}
+
+/* ---- Shared download helper ---- */
+function downloadBlob(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ============================================================
+   SHIPMENT SAVE / HISTORY
+   ============================================================ */
+function saveShipment() {
+  const data = getShipmentData();
+  if (!data.invoiceNumber) { toast('Invoice Number is required to save', 'error'); return; }
+  const shipments = loadStore('shipments');
+  const record = {
+    id: uid(),
+    savedAt: new Date().toISOString(),
+    status: 'Draft',
+    data: data,
+    // Selection IDs for cloning
+    shipperSelectId: document.getElementById('shipperSelect')?.value || '',
+    buyerSelectId: document.getElementById('buyerSelect')?.value || '',
+    notifySelectId: document.getElementById('notifySelect')?.value || '',
+    pickupSelectId: document.getElementById('pickupSelect')?.value || '',
+    deliverySelectId: document.getElementById('deliverySelect')?.value || '',
+  };
+  shipments.unshift(record);
+  saveStore('shipments', shipments);
+  toast('Shipment saved to history');
+}
+
+/* ============================================================
+   FEATURE 3 — SHIPMENT STATUS
+   ============================================================ */
+const STATUS_ORDER = ['Draft', 'Submitted', 'Cleared', 'Delivered'];
+const STATUS_CLASS = { Draft: 'tag-draft', Submitted: 'tag-submitted', Cleared: 'tag-cleared', Delivered: 'tag-delivered' };
+
+function updateShipmentStatus(id, newStatus) {
+  const shipments = loadStore('shipments');
+  const s = shipments.find(s => s.id === id);
+  if (!s) return;
+  s.status = newStatus;
+  saveStore('shipments', shipments);
+  renderHistory();
+  toast(`Status updated to ${newStatus}`);
+}
+
+function renderHistory() {
+  const shipments = loadStore('shipments');
+  const q = (document.getElementById('historySearch')?.value || '').toLowerCase();
+  const statusFilter = document.getElementById('historyStatusFilter')?.value || '';
+  const filtered = shipments.filter(s => {
+    const d = s.data;
+    const searchStr = [d.invoiceNumber, d.puRef, d.shipper?.company, d.buyer?.company, d.mode].join(' ').toLowerCase();
+    const matchSearch = !q || searchStr.includes(q);
+    const matchStatus = !statusFilter || (s.status || 'Draft') === statusFilter;
+    return matchSearch && matchStatus;
+  });
+  const tbody = document.getElementById('historyTableBody');
+  const empty = document.getElementById('historyEmpty');
+  if (!filtered.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  const currency_symbol = { USD: '$', EUR: '\u20ac', GBP: '\u00a3', HKD: 'HK$', CNY: '\u00a5', JPY: '\u00a5', SGD: 'S$' };
+  tbody.innerHTML = filtered.map(s => {
+    const d = s.data;
+    const status = s.status || 'Draft';
+    let totalVal = 0;
+    d.lineItems?.forEach(li => totalVal += li.qty * li.unitValue);
+    const sym = currency_symbol[d.currency] || d.currency + ' ';
+    const statusOptions = STATUS_ORDER.map(st =>
+      `<option value="${st}" ${st === status ? 'selected' : ''}>${st}</option>`
+    ).join('');
+    return `
+      <tr>
+        <td>${new Date(s.savedAt).toLocaleDateString()}</td>
+        <td><strong>${esc(d.invoiceNumber)}</strong></td>
+        <td>${esc(d.puRef)}</td>
+        <td><span class="tag ${d.mode==='SEA'?'tag-shipper':'tag-delivery'}">${d.mode}</span></td>
+        <td>
+          <select class="tag ${STATUS_CLASS[status]}" onchange="updateShipmentStatus('${s.id}', this.value)"
+            style="border:none; cursor:pointer; font-weight:600; font-size:.75rem; padding:2px 6px; border-radius:99px; appearance:auto;">
+            ${statusOptions}
+          </select>
+        </td>
+        <td>${esc(d.shipper?.company || d.shipper?.name || '-')}</td>
+        <td>${esc(d.buyer?.company || d.buyer?.name || '-')}</td>
+        <td>${d.lineItems?.length || 0}</td>
+        <td>${sym}${totalVal.toFixed(2)}</td>
+        <td class="actions">
+          <button class="btn btn-primary btn-sm" onclick="loadShipment('${s.id}')">Load</button>
+          <button class="btn btn-outline btn-sm" onclick="cloneShipment('${s.id}')">Clone</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteShipment('${s.id}')">Del</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function _populateShipmentForm(record, keepInvoiceNumber) {
+  const d = record.data;
+  navigateTo('shipment');
+  setMode(d.mode);
+  document.getElementById('invoiceDate').value    = d.invoiceDate || '';
+  document.getElementById('invoiceNumber').value  = keepInvoiceNumber ? (d.invoiceNumber || '') : '';
+  document.getElementById('puRef').value          = d.puRef || '';
+  document.getElementById('carrier').value        = d.carrier || '';
+  document.getElementById('containerNumber').value = d.containerNumber || '';
+  document.getElementById('sealNumber').value     = d.sealNumber || '';
+  document.getElementById('consigneeType').value  = d.consigneeType || '';
+  document.getElementById('shippingTerm').value   = d.shippingTerm || '';
+  document.getElementById('currency').value       = d.currency || 'USD';
+  document.getElementById('shipmentRemarks').value = d.remarks || '';
+  populateAddressDropdowns();
+  if (record.shipperSelectId)  document.getElementById('shipperSelect').value  = record.shipperSelectId;
+  if (record.buyerSelectId)    document.getElementById('buyerSelect').value    = record.buyerSelectId;
+  if (record.notifySelectId)   document.getElementById('notifySelect').value   = record.notifySelectId;
+  if (record.pickupSelectId)   document.getElementById('pickupSelect').value   = record.pickupSelectId;
+  if (record.deliverySelectId) document.getElementById('deliverySelect').value = record.deliverySelectId;
+  lineItems = (d.lineItems || []).map(li => ({ ...li, id: uid() }));
+  renderLineItems();
+  pallets = (d.pallets || []).map(p => ({ ...p, id: uid() }));
+  renderPallets();
+}
+
+function loadShipment(id) {
+  const record = loadStore('shipments').find(s => s.id === id);
+  if (!record) return;
+  _populateShipmentForm(record, true);
+  toast('Draft loaded — continue where you left off.');
+}
+
+function cloneShipment(id) {
+  const record = loadStore('shipments').find(s => s.id === id);
+  if (!record) return;
+  _populateShipmentForm(record, false);
+  toast('Shipment cloned. Update invoice number and details.');
+}
+
+function deleteShipment(id) {
+  if (!confirm('Delete this shipment from history?')) return;
+  const shipments = loadStore('shipments').filter(s => s.id !== id);
+  saveStore('shipments', shipments);
+  renderHistory();
+  toast('Shipment deleted');
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+function refreshDashboard() {
+  const shipments = loadStore('shipments');
+  const addresses = loadStore('addresses');
+  const products = loadStore('products');
+
+  document.getElementById('statShipments').textContent = shipments.length;
+  document.getElementById('statAddresses').textContent = addresses.length;
+  document.getElementById('statProducts').textContent = products.length;
+
+  const now = new Date();
+  const thisMonth = shipments.filter(s => {
+    const d = new Date(s.savedAt);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  document.getElementById('statMonth').textContent = thisMonth.length;
+
+  // Recent shipments
+  const recent = shipments.slice(0, 5);
+  const container = document.getElementById('dashboardRecent');
+  if (!recent.length) {
+    container.innerHTML = `<div class="empty-state"><p>No shipments yet. Create your first shipment to get started.</p></div>`;
+    return;
+  }
+  const currency_symbol = { USD: '$', EUR: '\u20ac', GBP: '\u00a3', HKD: 'HK$', CNY: '\u00a5', JPY: '\u00a5', SGD: 'S$' };
+  container.innerHTML = `<table class="data-table"><thead><tr><th>Date</th><th>Invoice #</th><th>Mode</th><th>Status</th><th>Route</th><th>Value</th><th></th></tr></thead><tbody>` +
+    recent.map(s => {
+      const d = s.data;
+      const status = s.status || 'Draft';
+      let totalVal = 0;
+      d.lineItems?.forEach(li => totalVal += li.qty * li.unitValue);
+      const sym = currency_symbol[d.currency] || d.currency + ' ';
+      return `<tr>
+        <td>${new Date(s.savedAt).toLocaleDateString()}</td>
+        <td><strong>${esc(d.invoiceNumber)}</strong></td>
+        <td><span class="tag ${d.mode==='SEA'?'tag-shipper':'tag-delivery'}">${d.mode}</span></td>
+        <td><span class="tag ${STATUS_CLASS[status]}">${status}</span></td>
+        <td>${esc(d.shipper?.company||'-')} &rarr; ${esc(d.buyer?.company||'-')}</td>
+        <td>${sym}${totalVal.toFixed(2)}</td>
+        <td>
+          <button class="btn btn-primary btn-sm" onclick="loadShipment('${s.id}')">Load</button>
+          <button class="btn btn-outline btn-sm" onclick="cloneShipment('${s.id}')">Clone</button>
+        </td>
+      </tr>`;
+    }).join('') + `</tbody></table>`;
+}
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+function loadSettings() {
+  const s = loadObj('settings');
+  document.getElementById('companyName').value = s.companyName || '';
+  document.getElementById('authText').value = s.authText || 'I declare that the above information is true and correct to the best of my knowledge.';
+
+  // Helper to refresh an image upload preview block
+  function refreshImgPreview(key, previewId, removeBtnId, placeholder) {
+    const data = localStorage.getItem(STORE_KEYS[key]);
+    const preview = document.getElementById(previewId);
+    const btn = document.getElementById(removeBtnId);
+    if (!preview) return;
+    if (data) {
+      preview.innerHTML = `<img src="${data}" alt="${key}" style="max-height:120px; max-width:100%; object-fit:contain;">`;
+      if (btn) btn.style.display = '';
+    } else {
+      preview.innerHTML = placeholder;
+      if (btn) btn.style.display = 'none';
+    }
+  }
+
+  renderLetterheadsSettings();
+  renderLetterheadSelector();
+
+  refreshImgPreview('signature', 'signaturePreview', 'removeSignatureBtn',
+    `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+     <span style="font-size:.85rem;">Click to upload signature</span>`);
+
+  refreshImgPreview('stamp', 'stampPreview', 'removeStampBtn',
+    `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+     <span style="font-size:.85rem;">Click to upload stamp</span>`);
+}
+
+function saveSettings() {
+  saveObj('settings', {
+    companyName: val('companyName'),
+    authText: val('authText')
+  });
+}
+
+function handleImageUpload(e, key) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    localStorage.setItem(STORE_KEYS[key], ev.target.result);
+    cloudPushAssets();
+    loadSettings();
+    toast(`${key.charAt(0).toUpperCase() + key.slice(1)} uploaded`);
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleLetterheadUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const defaultName = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
+  const name = prompt('Name for this letterhead:', defaultName) || defaultName;
+  const reader = new FileReader();
+  reader.onload = ev => { addLetterhead(name.trim(), ev.target.result); };
+  reader.readAsDataURL(file);
+  e.target.value = ''; // reset so same file can be re-added
+}
+
+function removeImage(key) {
+  const labels = { signature: 'signature', stamp: 'stamp' };
+  if (!confirm(`Remove ${labels[key] || key}?`)) return;
+  localStorage.removeItem(STORE_KEYS[key]);
+  cloudPushAssets();
+  loadSettings();
+  toast(`${labels[key]} removed`);
+}
+
+function removeLetterhead() {} // legacy no-op (now handled by removeLetterheadById)
+
+/* ============================================================
+   DATA EXPORT / IMPORT
+   ============================================================ */
+function exportAllData() {
+  const data = {};
+  Object.keys(STORE_KEYS).forEach(k => {
+    const raw = localStorage.getItem(STORE_KEYS[k]);
+    if (raw) data[k] = raw;
+  });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'shipdoc-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Data exported');
+}
+
+function importAllData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      Object.keys(data).forEach(k => {
+        if (STORE_KEYS[k]) localStorage.setItem(STORE_KEYS[k], data[k]);
+      });
+      // Push imported data to Firestore if connected
+      for (const key of ['addresses','products','shipments']) {
+        const d = loadStore(key);
+        if (d.length) cloudPush(key, d);
+      }
+      const s = loadObj('settings');
+      if (Object.keys(s).length) cloudPush('settings', s);
+      cloudPushAssets();
+      // Refresh all UI
+      refreshDashboard();
+      loadSettings();
+      renderAddresses();
+      renderProducts();
+      renderHistory();
+      populateAddressDropdowns();
+      toast('Data imported successfully');
+    } catch { toast('Invalid file', 'error'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function clearAllData() {
+  if (!confirm('This will delete ALL saved data (addresses, products, shipments, letterhead). Are you sure?')) return;
+  Object.values(STORE_KEYS).forEach(k => localStorage.removeItem(k));
+  lineItems = [];
+  pallets = [];
+  toast('All data cleared');
+  refreshDashboard();
+}
+
+/* ============================================================
+   CLOUD SYNC — Firebase Firestore (modular API, named DB support)
+   ============================================================ */
+let _db = null, _teamId = null, _cloudListeners = [];
+let _fsDoc, _fsGetDoc, _fsSetDoc, _fsOnSnapshot, _fsInitFirestore, _fsGetFirestore;
+
+async function _loadFirestoreModule() {
+  if (_fsDoc) return;
+  const mod = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+  _fsInitFirestore = mod.initializeFirestore;
+  _fsGetFirestore  = mod.getFirestore;
+  _fsDoc           = mod.doc;
+  _fsGetDoc        = mod.getDoc;
+  _fsSetDoc        = mod.setDoc;
+  _fsOnSnapshot    = mod.onSnapshot;
+}
+
+function _cloudRef(col) {
+  return _fsDoc(_db, 'teams', _teamId, 'data', col);
+}
+
+async function _initDb(dbName) {
+  try { return _fsInitFirestore(firebase.app(), { experimentalForceLongPolling: true }, dbName); }
+  catch(e) { return _fsGetFirestore(firebase.app(), dbName); }
+}
+
+async function cloudInit() {
+  try {
+    const raw    = localStorage.getItem('sdg_fb_config');
+    const teamId = localStorage.getItem('sdg_team_id');
+    const dbName = localStorage.getItem('sdg_db_name') || '(default)';
+    if (!raw || !teamId) return;
+    const config = JSON.parse(raw);
+    await _loadFirestoreModule();
+    if (!firebase.apps.length) firebase.initializeApp(config);
+    _db = await _initDb(dbName);
+    _teamId = teamId;
+    await cloudPull();
+    _cloudListen();
+    _renderSyncUI();
+    refreshDashboard();
+    loadSettings();
+  } catch(e) { console.warn('Cloud init failed:', e); }
+}
+
+async function cloudSave() {
+  let configStr = (document.getElementById('fbConfigInput')?.value || '').trim();
+  const teamId  = (document.getElementById('fbTeamId')?.value  || '').trim();
+  const dbName  = (document.getElementById('fbDbName')?.value  || '').trim() || '(default)';
+  if (!configStr || !teamId) { toast('Please fill in both fields', 'error'); return; }
+  configStr = configStr.replace(/^const\s+\w+\s*=\s*/, '').replace(/;?\s*$/, '');
+  let config;
+  try { config = new Function('return (' + configStr + ')')(); }
+  catch(e) { toast('Invalid Firebase config — check the format', 'error'); return; }
+  const btn = document.querySelector('[onclick="cloudSave()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Connecting\u2026'; }
+  try {
+    _cloudListeners.forEach(u => u()); _cloudListeners = [];
+    await _loadFirestoreModule();
+    if (firebase.apps.length) { try { await firebase.apps[0].delete(); } catch(e) {} }
+    firebase.initializeApp(config);
+    _db = await _initDb(dbName);
+    _teamId = teamId;
+    localStorage.setItem('sdg_fb_config', JSON.stringify(config));
+    localStorage.setItem('sdg_team_id', teamId);
+    localStorage.setItem('sdg_db_name', dbName);
+    await Promise.race([cloudPull(), new Promise(r => setTimeout(r, 6000))]);
+    for (const key of ['addresses','products','shipments']) {
+      const data = loadStore(key);
+      if (data.length) await Promise.race([cloudPush(key, data), new Promise(r => setTimeout(r, 5000))]);
+    }
+    const localSettings = loadObj('settings');
+    if (Object.keys(localSettings).length) await Promise.race([cloudPush('settings', localSettings), new Promise(r => setTimeout(r, 5000))]);
+    cloudPushAssets();
+    _cloudListen();
+    _renderSyncUI();
+    toast('Connected! Local data uploaded to team workspace.');
+    refreshDashboard();
+    loadSettings();
+  } catch(e) {
+    toast('Connection failed: ' + (e.message || e), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Connect to Team'; }
+  }
+}
+
+function cloudDisconnect() {
+  _cloudListeners.forEach(u => u()); _cloudListeners = [];
+  _db = null; _teamId = null;
+  localStorage.removeItem('sdg_fb_config');
+  localStorage.removeItem('sdg_team_id');
+  localStorage.removeItem('sdg_db_name');
+  _renderSyncUI();
+  toast('Disconnected from team sync');
+}
+
+async function cloudPull() {
+  if (!_db || !_teamId) return;
+  for (const col of ['addresses','products','shipments','settings','assets']) {
+    try {
+      const snap = await _fsGetDoc(_cloudRef(col));
+      if (!snap.exists()) continue;
+      const d = snap.data();
+      if (col === 'assets') {
+        if (Array.isArray(d.letterheads)) localStorage.setItem(STORE_KEYS.letterheads, JSON.stringify(d.letterheads));
+        d.signature ? localStorage.setItem(STORE_KEYS.signature, d.signature) : localStorage.removeItem(STORE_KEYS.signature);
+        d.stamp ? localStorage.setItem(STORE_KEYS.stamp, d.stamp) : localStorage.removeItem(STORE_KEYS.stamp);
+      } else if (col === 'settings') {
+        localStorage.setItem(STORE_KEYS.settings, JSON.stringify(d));
+      } else {
+        localStorage.setItem(STORE_KEYS[col], JSON.stringify(d.items || []));
+      }
+    } catch(e) { console.warn('Cloud pull error:', col, e); }
+  }
+}
+
+function _cloudListen() {
+  _cloudListeners.forEach(u => u()); _cloudListeners = [];
+  const watch = (col, onData) => {
+    const u = _fsOnSnapshot(_cloudRef(col), snap => { if (snap.exists()) onData(snap.data()); }, e => console.warn('Listener:', col, e));
+    _cloudListeners.push(u);
+  };
+  watch('addresses', d => {
+    localStorage.setItem(STORE_KEYS.addresses, JSON.stringify(d.items || []));
+    populateAddressDropdowns?.();
+    if (document.getElementById('page-addresses')?.classList.contains('active')) renderAddresses?.();
+  });
+  watch('products', d => {
+    localStorage.setItem(STORE_KEYS.products, JSON.stringify(d.items || []));
+    if (document.getElementById('page-products')?.classList.contains('active')) renderProducts?.();
+  });
+  watch('shipments', d => {
+    localStorage.setItem(STORE_KEYS.shipments, JSON.stringify(d.items || []));
+    renderHistory?.(); refreshDashboard?.();
+  });
+  watch('settings', d => {
+    localStorage.setItem(STORE_KEYS.settings, JSON.stringify(d));
+    loadSettings?.();
+  });
+  watch('assets', d => {
+    if (Array.isArray(d.letterheads)) localStorage.setItem(STORE_KEYS.letterheads, JSON.stringify(d.letterheads));
+    d.signature ? localStorage.setItem(STORE_KEYS.signature, d.signature) : localStorage.removeItem(STORE_KEYS.signature);
+    d.stamp ? localStorage.setItem(STORE_KEYS.stamp, d.stamp) : localStorage.removeItem(STORE_KEYS.stamp);
+    renderLetterheadSelector?.(); loadSettings?.();
+  });
+}
+
+async function cloudPush(key, data) {
+  if (!_db || !_teamId) return;
+  try {
+    if (['addresses','products','shipments'].includes(key)) {
+      await _fsSetDoc(_cloudRef(key), { items: data });
+    } else if (key === 'settings') {
+      await _fsSetDoc(_cloudRef('settings'), data, { merge: true });
+    } else if (key === 'letterheads') {
+      cloudPushAssets();
+    }
+  } catch(e) { console.warn('Cloud push error:', key, e); }
+}
+
+async function cloudPushAssets() {
+  if (!_db || !_teamId) return;
+  try {
+    await _fsSetDoc(_cloudRef('assets'), {
+      letterheads: loadStore('letterheads'),
+      signature: localStorage.getItem(STORE_KEYS.signature) || null,
+      stamp: localStorage.getItem(STORE_KEYS.stamp) || null
+    });
+  } catch(e) {
+    const msg = e.message || '';
+    if (msg.includes('exceeds') || e.code === 'resource-exhausted') {
+      toast('Image too large to sync \u2014 use a smaller file', 'error');
+    } else { console.warn('Asset push error:', e); }
+  }
+}
+
+function _renderSyncUI() {
+  const connected = !!_db && !!_teamId;
+  const connView = document.getElementById('syncConnectedView');
+  const setupView = document.getElementById('syncSetupView');
+  const badge = document.getElementById('syncBadge');
+  const label = document.getElementById('syncTeamLabel');
+  if (connView) connView.style.display = connected ? '' : 'none';
+  if (setupView) setupView.style.display = connected ? 'none' : '';
+  if (badge) { badge.textContent = connected ? '● Team Sync ON' : '○ Local Only'; badge.style.color = connected ? '#16a34a' : '#94a3b8'; }
+  if (label && connected) label.textContent = _teamId;
+}
+
+/* ============================================================
+   UTILITY
+   ============================================================ */
+function val(id) { return document.getElementById(id)?.value?.trim() || ''; }
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init() {
+  document.getElementById('invoiceDate').value = new Date().toISOString().slice(0, 10);
+  setMode('SEA');
+  initPalletPresets();
+  refreshDashboard();
+  loadSettings();
+  _renderSyncUI();
+  cloudInit(); // auto-connect if team config was previously saved
+}
+
+init();
+</script>
+</body>
+</html>
