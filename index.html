@@ -1660,7 +1660,9 @@ function openProductModal(editId) {
           <div class="form-grid">
             <div class="form-group"><label>SKU</label><input type="text" id="prod_sku" value="${esc(prod?.sku||'')}"></div>
             <div class="form-group"><label>Product Name</label><input type="text" id="prod_name" value="${esc(prod?.name||'')}"></div>
-            <div class="form-group"><label>HS Code</label><input type="text" id="prod_hs" value="${esc(prod?.hsCode||'')}"></div>
+            <div class="form-group"><label>General HS Code</label><input type="text" id="prod_hs" value="${esc(prod?.hsCode||'')}" placeholder="e.g. 8471.30"></div>
+            <div class="form-group"><label>US HTS Code <span style="color:var(--gray-400);font-weight:400;font-size:.78rem;">10-digit, e.g. 8471.30.0000</span></label><input type="text" id="prod_hs_us" value="${esc(prod?.hsCodeUS||'')}" placeholder="e.g. 8471.30.0000"></div>
+            <div class="form-group"><label>UK Commodity Code <span style="color:var(--gray-400);font-weight:400;font-size:.78rem;">10-digit, no dots</span></label><input type="text" id="prod_hs_uk" value="${esc(prod?.hsCodeUK||'')}" placeholder="e.g. 8471300000"></div>
             <div class="form-group"><label>Country of Origin</label><input type="text" id="prod_origin" value="${esc(prod?.origin||'')}"></div>
             <div class="form-group"><label>Unit Weight (kg)</label><input type="number" step="0.001" id="prod_weight" value="${prod?.unitWeight||''}"></div>
             <div class="form-group"><label>Unit Value (USD)</label><input type="number" step="0.01" id="prod_value" value="${prod?.unitValue||''}"></div>
@@ -1693,7 +1695,7 @@ function saveProduct(editId) {
   const data = {
     id: editId || uid(),
     sku: val('prod_sku'), name: val('prod_name'),
-    hsCode: val('prod_hs'), origin: val('prod_origin'),
+    hsCode: val('prod_hs'), hsCodeUS: val('prod_hs_us'), hsCodeUK: val('prod_hs_uk'), origin: val('prod_origin'),
     unitWeight: parseFloat(val('prod_weight')) || 0,
     unitValue: parseFloat(val('prod_value')) || 0,
     pcsPerCarton: parseInt(val('prod_pcsCarton')) || 0,
@@ -1742,7 +1744,12 @@ function renderProducts() {
     <tr>
       <td><strong>${esc(p.sku)}</strong></td>
       <td>${esc(p.name)}</td>
-      <td>${esc(p.hsCode)}</td>
+      <td>
+        ${p.hsCode ? `<div>${esc(p.hsCode)}</div>` : ''}
+        ${p.hsCodeUS ? `<div style="font-size:.75rem;color:var(--blue);">US: ${esc(p.hsCodeUS)}</div>` : ''}
+        ${p.hsCodeUK ? `<div style="font-size:.75rem;color:var(--indigo);">UK: ${esc(p.hsCodeUK)}</div>` : ''}
+        ${!p.hsCode && !p.hsCodeUS && !p.hsCodeUK ? `<span style="color:var(--gray-400);">—</span>` : ''}
+      </td>
       <td>${esc(p.origin)}</td>
       <td>${p.unitWeight}</td>
       <td>${p.unitValue.toFixed(2)}</td>
@@ -1920,7 +1927,7 @@ function addLineItem(productId) {
   if (!p) return;
   lineItems.push({
     id: uid(), productId: p.id, sku: p.sku, name: p.name,
-    hsCode: p.hsCode, origin: p.origin,
+    hsCode: p.hsCode, hsCodeGeneral: p.hsCode, hsCodeUS: p.hsCodeUS || '', hsCodeUK: p.hsCodeUK || '', origin: p.origin,
     qty: 0, unit: 'pcs', unitWeight: p.unitWeight, unitValue: p.unitValue
   });
   document.getElementById('lineItemSearch').value = '';
@@ -1931,6 +1938,21 @@ function addLineItem(productId) {
 function removeLineItem(id) {
   lineItems = lineItems.filter(li => li.id !== id);
   renderLineItems();
+}
+
+// Build an HS Code preset <select> — returns '' if fewer than 2 presets available
+function buildHsSelect(activeCode, generalCode, usCode, ukCode, onchangeExpr) {
+  const opts = [];
+  if (generalCode) opts.push({ label: 'General: ' + generalCode, value: generalCode });
+  if (usCode)      opts.push({ label: 'US HTS: '  + usCode,      value: usCode });
+  if (ukCode)      opts.push({ label: 'UK Code: '  + ukCode,      value: ukCode });
+  if (opts.length < 2) return ''; // no dropdown needed — text input alone suffices
+  const hasMatch = opts.some(o => o.value === activeCode);
+  const placeholder = `<option value=""${!hasMatch ? ' selected' : ''}>— Preset —</option>`;
+  const optHtml = placeholder + opts.map(o =>
+    `<option value="${esc(o.value)}"${o.value === activeCode ? ' selected' : ''}>${esc(o.label)}</option>`
+  ).join('');
+  return `<select onchange="${onchangeExpr}" title="Select preset HS Code" style="padding:3px 6px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;background:white;color:var(--gray-700);cursor:pointer;">${optHtml}</select>`;
 }
 
 function updateLineItem(id, field, value) {
@@ -1957,7 +1979,11 @@ function renderLineItems() {
     <tr>
       <td>
         <div style="font-weight:600;">${esc(li.sku)} - ${esc(li.name)}</div>
-        <div style="font-size:.82rem; color:var(--gray-500);">HS: ${esc(li.hsCode)} | Origin: ${esc(li.origin)}</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:4px;flex-wrap:wrap;">
+          ${buildHsSelect(li.hsCode, li.hsCodeGeneral||li.hsCode, li.hsCodeUS, li.hsCodeUK, `updateLineItem('${li.id}','hsCode',this.value)`)}
+          <input type="text" value="${esc(li.hsCode||'')}" placeholder="HS Code" style="width:120px;padding:3px 7px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;" onchange="updateLineItem('${li.id}','hsCode',this.value)">
+          <span style="font-size:.75rem;color:var(--gray-400);">| Origin: ${esc(li.origin)}</span>
+        </div>
       </td>
       <td><input type="number" min="0" value="${li.qty}" style="width:80px; padding:4px 8px; border:1px solid var(--gray-300); border-radius:4px;" onchange="updateLineItem('${li.id}','qty',this.value)"></td>
       <td>pcs</td>
@@ -2066,6 +2092,9 @@ function assignPalletProduct(palletId, productId) {
   pallet.sku = prod.sku;
   pallet.productName = prod.name;
   pallet.hsCode = prod.hsCode;
+  pallet.hsCodeGeneral = prod.hsCode;
+  pallet.hsCodeUS = prod.hsCodeUS || '';
+  pallet.hsCodeUK = prod.hsCodeUK || '';
   pallet.origin = prod.origin;
 
   // 1st priority: pallet dims saved on the product itself
@@ -2224,7 +2253,12 @@ function renderPallets() {
               <input type="text" readonly value="${p.sku ? esc(p.sku) + ' — ' + esc(p.productName) : 'No product selected'}" style="flex:1; cursor:pointer; background:var(--gray-50);" onclick="selectPalletProduct('${p.id}')">
               <button class="btn btn-outline btn-sm" onclick="selectPalletProduct('${p.id}')">Choose</button>
             </div>
-            ${p.hsCode ? `<div style="font-size:.82rem; color:var(--gray-500); margin-top:4px;">HS: ${esc(p.hsCode)} | Origin: ${esc(p.origin)}</div>` : ''}
+            <div style="display:flex;align-items:center;gap:5px;margin-top:6px;flex-wrap:wrap;">
+              <span style="font-size:.75rem;color:var(--gray-500);font-weight:600;">HS:</span>
+              ${buildHsSelect(p.hsCode, p.hsCodeGeneral||p.hsCode, p.hsCodeUS, p.hsCodeUK, `updatePallet('${p.id}','hsCode',this.value)`)}
+              <input type="text" value="${esc(p.hsCode||'')}" placeholder="Enter HS Code" style="width:130px;padding:3px 7px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;" onchange="updatePallet('${p.id}','hsCode',this.value)">
+              ${p.origin ? `<span style="font-size:.75rem;color:var(--gray-400);">| Origin: ${esc(p.origin)}</span>` : ''}
+            </div>
           </div>
 
           <div class="form-group">
@@ -3122,9 +3156,27 @@ function _populateShipmentForm(record, keepInvoiceNumber) {
   if (record.notifySelectId)   document.getElementById('notifySelect').value   = record.notifySelectId;
   if (record.pickupSelectId)   document.getElementById('pickupSelect').value   = record.pickupSelectId;
   if (record.deliverySelectId) document.getElementById('deliverySelect').value = record.deliverySelectId;
-  lineItems = (d.lineItems || []).map(li => ({ ...li, id: uid() }));
+  // Enrich restored items with latest HS codes from product catalog
+  const _products = loadStore('products');
+  lineItems = (d.lineItems || []).map(li => {
+    const prod = _products.find(p => p.id === li.productId);
+    return {
+      ...li, id: uid(),
+      hsCodeGeneral: li.hsCodeGeneral || (prod?.hsCode  || li.hsCode || ''),
+      hsCodeUS:      li.hsCodeUS      !== undefined ? li.hsCodeUS : (prod?.hsCodeUS  || ''),
+      hsCodeUK:      li.hsCodeUK      !== undefined ? li.hsCodeUK : (prod?.hsCodeUK  || ''),
+    };
+  });
   renderLineItems();
-  pallets = (d.pallets || []).map(p => ({ ...p, id: uid() }));
+  pallets = (d.pallets || []).map(p => {
+    const prod = _products.find(pr => pr.id === p.productId);
+    return {
+      ...p, id: uid(),
+      hsCodeGeneral: p.hsCodeGeneral || (prod?.hsCode  || p.hsCode || ''),
+      hsCodeUS:      p.hsCodeUS      !== undefined ? p.hsCodeUS : (prod?.hsCodeUS  || ''),
+      hsCodeUK:      p.hsCodeUK      !== undefined ? p.hsCodeUK : (prod?.hsCodeUK  || ''),
+    };
+  });
   renderPallets();
 }
 
