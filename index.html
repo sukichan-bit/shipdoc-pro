@@ -768,7 +768,7 @@ table { border-collapse: collapse; width: 100%; }
           <div class="card-header"><h2>Quick Start</h2></div>
           <div class="card-body">
             <div class="quick-start-grid">
-              <div class="quick-start-card" onclick="navigateTo('shipment')">
+              <div class="quick-start-card" onclick="_editingShipmentId=null;_updateSaveButtons();navigateTo('shipment')">
                 <div class="qs-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                 </div>
@@ -1060,7 +1060,8 @@ table { border-collapse: collapse; width: 100%; }
               <button class="btn btn-success" onclick="exportDoc('ci')">Export Commercial Invoice</button>
               <button class="btn btn-success" onclick="exportDoc('pl')">Export Packing List</button>
               <button class="btn btn-success" onclick="exportDoc('both')">Export Both</button>
-              <button class="btn btn-secondary" onclick="saveShipment()">Save Shipment</button>
+              <button id="btnSaveShipment" class="btn btn-secondary" onclick="saveShipment()">Save Shipment</button>
+              <button id="btnSaveNewShipment" class="btn btn-outline" onclick="saveNewShipment()" style="display:none;" title="Save as a brand-new history entry">Save as New</button>
             </div>
           </div>
           <div class="print-preview-container" id="previewContainer"></div>
@@ -1410,7 +1411,10 @@ function navigateTo(page) {
 }
 
 document.querySelectorAll('.sidebar-nav button').forEach(btn => {
-  btn.addEventListener('click', () => navigateTo(btn.dataset.page));
+  btn.addEventListener('click', () => {
+    if (btn.dataset.page === 'shipment') { _editingShipmentId = null; _updateSaveButtons(); }
+    navigateTo(btn.dataset.page);
+  });
 });
 
 /* ============================================================
@@ -2038,6 +2042,22 @@ function updateLineTotals() {
    PALLETS
    ============================================================ */
 let pallets = [];
+let _editingShipmentId = null; // set when a history record is loaded for editing
+
+function _updateSaveButtons() {
+  const editing = !!_editingShipmentId;
+  const saveBtn    = document.getElementById('btnSaveShipment');
+  const saveNewBtn = document.getElementById('btnSaveNewShipment');
+  if (saveBtn) {
+    saveBtn.textContent = editing ? 'Update Shipment' : 'Save Shipment';
+    saveBtn.className   = editing ? 'btn btn-success' : 'btn btn-secondary';
+  }
+  if (saveNewBtn) saveNewBtn.style.display = editing ? '' : 'none';
+  const titleEl = document.getElementById('pageTitle');
+  if (titleEl && document.getElementById('page-shipment')?.classList.contains('active')) {
+    titleEl.textContent = editing ? 'Edit Shipment' : 'New Shipment';
+  }
+}
 
 function addPallet() {
   pallets.push({
@@ -3092,25 +3112,49 @@ function downloadBlob(content, filename, mimeType) {
 /* ============================================================
    SHIPMENT SAVE / HISTORY
    ============================================================ */
+function _collectSelectionIds() {
+  return {
+    shipperSelectId:  document.getElementById('shipperSelect')?.value  || '',
+    buyerSelectId:    document.getElementById('buyerSelect')?.value    || '',
+    notifySelectId:   document.getElementById('notifySelect')?.value   || '',
+    pickupSelectId:   document.getElementById('pickupSelect')?.value   || '',
+    deliverySelectId: document.getElementById('deliverySelect')?.value || '',
+  };
+}
+
 function saveShipment() {
   const data = getShipmentData();
   if (!data.invoiceNumber) { toast('Invoice Number is required to save', 'error'); return; }
   const shipments = loadStore('shipments');
-  const record = {
-    id: uid(),
-    savedAt: new Date().toISOString(),
-    status: 'Draft',
-    data: data,
-    // Selection IDs for cloning
-    shipperSelectId: document.getElementById('shipperSelect')?.value || '',
-    buyerSelectId: document.getElementById('buyerSelect')?.value || '',
-    notifySelectId: document.getElementById('notifySelect')?.value || '',
-    pickupSelectId: document.getElementById('pickupSelect')?.value || '',
-    deliverySelectId: document.getElementById('deliverySelect')?.value || '',
-  };
+  if (_editingShipmentId) {
+    // Update the existing record in-place
+    const idx = shipments.findIndex(s => s.id === _editingShipmentId);
+    if (idx !== -1) {
+      shipments[idx] = { ...shipments[idx], savedAt: new Date().toISOString(), data, ..._collectSelectionIds() };
+      saveStore('shipments', shipments);
+      toast('Shipment updated ✓');
+      return;
+    }
+  }
+  // Create new record (no existing record being edited)
+  const record = { id: uid(), savedAt: new Date().toISOString(), status: 'Draft', data, ..._collectSelectionIds() };
   shipments.unshift(record);
+  _editingShipmentId = record.id;
   saveStore('shipments', shipments);
+  _updateSaveButtons();
   toast('Shipment saved to history');
+}
+
+function saveNewShipment() {
+  const data = getShipmentData();
+  if (!data.invoiceNumber) { toast('Invoice Number is required to save', 'error'); return; }
+  const shipments = loadStore('shipments');
+  const record = { id: uid(), savedAt: new Date().toISOString(), status: 'Draft', data, ..._collectSelectionIds() };
+  shipments.unshift(record);
+  _editingShipmentId = record.id;
+  saveStore('shipments', shipments);
+  _updateSaveButtons();
+  toast('Saved as new shipment');
 }
 
 /* ============================================================
@@ -3237,14 +3281,18 @@ function _populateShipmentForm(record, keepInvoiceNumber) {
 function loadShipment(id) {
   const record = loadStore('shipments').find(s => s.id === id);
   if (!record) return;
+  _editingShipmentId = id;
   _populateShipmentForm(record, true);
-  toast('Draft loaded — continue where you left off.');
+  _updateSaveButtons();
+  toast('Shipment loaded — changes will update the original.');
 }
 
 function cloneShipment(id) {
   const record = loadStore('shipments').find(s => s.id === id);
   if (!record) return;
+  _editingShipmentId = null;
   _populateShipmentForm(record, false);
+  _updateSaveButtons();
   toast('Shipment cloned. Update invoice number and details.');
 }
 
