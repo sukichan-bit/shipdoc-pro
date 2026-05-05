@@ -882,6 +882,10 @@ table { border-collapse: collapse; width: 100%; }
                   <label>Carrier</label>
                   <input type="text" id="carrier" value="Unique Logistics">
                 </div>
+                <div class="form-group">
+                  <label>Tracking Number</label>
+                  <input type="text" id="trackingNumber" placeholder="e.g. 1Z999AA10123456784 / MAWB 123-45678901">
+                </div>
                 <div class="form-group sea-only">
                   <label>Container Number</label>
                   <input type="text" id="containerNumber" placeholder="e.g. MSKU1234567">
@@ -909,15 +913,25 @@ table { border-collapse: collapse; width: 100%; }
                 </div>
                 <div class="form-group">
                   <label>Currency</label>
-                  <select id="currency">
-                    <option value="USD" selected>USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="GBP">GBP</option>
-                    <option value="HKD">HKD</option>
-                    <option value="CNY">CNY</option>
-                    <option value="JPY">JPY</option>
-                    <option value="SGD">SGD</option>
+                  <select id="currency" onchange="document.getElementById('currencyCustomWrap').style.display=this.value==='CUSTOM'?'block':'none'">
+                    <option value="USD" selected>USD — US Dollar</option>
+                    <option value="EUR">EUR — Euro</option>
+                    <option value="GBP">GBP — Pound Sterling</option>
+                    <option value="HKD">HKD — HK Dollar</option>
+                    <option value="CAD">CAD — Canadian Dollar</option>
+                    <option value="AUD">AUD — Australian Dollar</option>
+                    <option value="SGD">SGD — Singapore Dollar</option>
+                    <option value="CNY">CNY — Chinese Yuan</option>
+                    <option value="JPY">JPY — Japanese Yen</option>
+                    <option value="MYR">MYR — Malaysian Ringgit</option>
+                    <option value="TWD">TWD — Taiwan Dollar</option>
+                    <option value="KRW">KRW — Korean Won</option>
+                    <option value="THB">THB — Thai Baht</option>
+                    <option value="CUSTOM">Other (type below)…</option>
                   </select>
+                  <div id="currencyCustomWrap" style="display:none;margin-top:6px;">
+                    <input type="text" id="currencyCustom" maxlength="10" placeholder="e.g. AED, VND, CHF" style="width:160px;padding:6px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:.88rem;" oninput="this.value=this.value.toUpperCase()">
+                  </div>
                 </div>
               </div>
             </div>
@@ -927,7 +941,11 @@ table { border-collapse: collapse; width: 100%; }
             <div class="card-header"><h2>Remarks / Special Instructions</h2></div>
             <div class="card-body">
               <div class="form-group">
-                <label>Remarks (printed on both CI and PL)</label>
+                <label>Additional Notes — CI only <span style="font-weight:400;color:var(--gray-400);font-size:.8rem;">(printed above Authorization Text)</span></label>
+                <textarea id="ciNotes" rows="2" placeholder="e.g. All goods are new and unused. Goods are not subject to export controls."></textarea>
+              </div>
+              <div class="form-group" style="margin-top:12px;">
+                <label>Remarks <span style="font-weight:400;color:var(--gray-400);font-size:.8rem;">(printed on both CI and PL)</span></label>
                 <textarea id="shipmentRemarks" rows="3" placeholder="e.g. Handle with care. Keep dry. Temperature controlled.&#10;All items are new and unused."></textarea>
               </div>
             </div>
@@ -1969,7 +1987,7 @@ function updateLineItem(id, field, value) {
 function renderLineItems() {
   const tbody = document.getElementById('lineItemsBody');
   const empty = document.getElementById('lineItemsEmpty');
-  const currency = document.getElementById('currency')?.value || 'USD';
+  const currency = getCurrency();
   if (!lineItems.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); updateLineTotals(); return; }
   empty.classList.add('hidden');
   tbody.innerHTML = lineItems.map(li => {
@@ -1996,8 +2014,15 @@ function renderLineItems() {
   updateLineTotals();
 }
 
+function getCurrency() {
+  const sel = document.getElementById('currency');
+  if (!sel) return 'USD';
+  if (sel.value === 'CUSTOM') return document.getElementById('currencyCustom')?.value.trim() || 'USD';
+  return sel.value || 'USD';
+}
+
 function updateLineTotals() {
-  const currency = document.getElementById('currency')?.value || 'USD';
+  const currency = getCurrency();
   let totalPcs = 0, totalWt = 0, totalVal = 0;
   lineItems.forEach(li => {
     totalPcs += li.qty;
@@ -2444,13 +2469,15 @@ function getShipmentData() {
     invoiceNumber: val('invoiceNumber'),
     puRef: val('puRef'),
     carrier: val('carrier'),
+    trackingNumber: val('trackingNumber'),
     containerNumber: val('containerNumber'),
     sealNumber: val('sealNumber'),
     consigneeType: val('consigneeType'),
     shippingTerm: document.getElementById('shippingTerm')?.value || '',
-    currency: document.getElementById('currency')?.value || 'USD',
+    currency: getCurrency(),
     lineItems: [...lineItems],
     pallets: [...pallets],
+    ciNotes: val('ciNotes'),
     remarks: val('shipmentRemarks'),
     companyName: loadObj('settings').companyName || '',
     authText: loadObj('settings').authText || 'I declare that the above information is true and correct to the best of my knowledge.'
@@ -2502,6 +2529,8 @@ function generateCI(data) {
       <div class="field"><span class="field-label">PU REF#:</span><span>${esc(d.puRef)}</span></div>
       <div class="field"><span class="field-label">Carrier:</span><span>${esc(d.carrier)}</span></div>
       <div class="field"><span class="field-label">Mode of Transport:</span><span>${d.mode}</span></div>`;
+  if (d.trackingNumber) fieldsHTML += `
+      <div class="field"><span class="field-label">Tracking Number:</span><span>${esc(d.trackingNumber)}</span></div>`;
   if (isSea) {
     fieldsHTML += `
       <div class="field"><span class="field-label">Container Number:</span><span>${esc(d.containerNumber)}</span></div>
@@ -2552,6 +2581,11 @@ function generateCI(data) {
       <div class="total-line grand"><span>Total Value (${currency}):</span><span>${totalVal.toFixed(2)}</span></div>
     </div>`;
 
+  const ciNotesHTML = d.ciNotes ? `
+    <div class="doc-declaration" style="border-color:#bbb;">
+      <span style="white-space:pre-line;">${esc(d.ciNotes)}</span>
+    </div>` : '';
+
   const declaration = `
     <div class="doc-declaration">
       ${esc(d.authText)} We authorize <strong>${esc(d.carrier)}</strong> as our customs clearance and delivery agent regarding this shipment.
@@ -2584,6 +2618,7 @@ function generateCI(data) {
     ${fieldsHTML}
     ${tableHTML}
     ${totalsHTML}
+    ${ciNotesHTML}
     ${declaration}
     ${remarksHTML}
     ${footer}`;
@@ -2848,6 +2883,7 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
     fieldRows.push(`<tr>${FIELD('Invoice Date', d.invoiceDate)}${FIELD('Invoice Number', d.invoiceNumber)}</tr>`);
     fieldRows.push(`<tr>${FIELD('PU REF#', d.puRef)}${FIELD('Carrier', d.carrier)}</tr>`);
     fieldRows.push(`<tr>${FIELD('Mode of Transport', d.mode)}${FIELD('Shipping Term', d.shippingTerm)}</tr>`);
+    if (d.trackingNumber) fieldRows.push(`<tr>${FIELD('Tracking Number', d.trackingNumber)}<td style="border:none;"></td><td style="border:none;"></td></tr>`);
     if (isSea) {
       fieldRows.push(`<tr>${FIELD('Container Number', d.containerNumber)}${FIELD('Seal Number', d.sealNumber)}</tr>`);
       fieldRows.push(`<tr>${FIELD('Consignee Type', d.consigneeType)}<td style="border:none;"></td><td style="border:none;"></td></tr>`);
@@ -2933,6 +2969,13 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
       </table>`;
   }
 
+  /* ---- CI Additional Notes ---- */
+  const ciNotes = (isCI && d.ciNotes)
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
+         <tr><td style="border:1px solid #ccc;padding:3px 5px;font-size:8.5pt;">${esc(d.ciNotes).replace(/\n/g,'<br>')}</td></tr>
+       </table>`
+    : '';
+
   /* ---- Declaration ---- */
   const declaration = isCI
     ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:5px;">
@@ -2974,7 +3017,7 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
        </tr>
      </table>`;
 
-  return letterhead + titleBlock + headerTable + addrTable + fieldsTable + itemsTable + totalsBlock + declaration + remarks + footer;
+  return letterhead + titleBlock + headerTable + addrTable + fieldsTable + itemsTable + totalsBlock + ciNotes + declaration + remarks + footer;
 }
 
 /* ---- EXCEL (.xls via HTML) ---- */
@@ -3101,7 +3144,7 @@ function renderHistory() {
   const empty = document.getElementById('historyEmpty');
   if (!filtered.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
   empty.classList.add('hidden');
-  const currency_symbol = { USD: '$', EUR: '\u20ac', GBP: '\u00a3', HKD: 'HK$', CNY: '\u00a5', JPY: '\u00a5', SGD: 'S$' };
+  const currency_symbol = { USD: '$', EUR: '\u20ac', GBP: '\u00a3', HKD: 'HK$', CAD: 'CA$', AUD: 'A$', SGD: 'S$', CNY: '\u00a5', JPY: '\u00a5', MYR: 'RM', TWD: 'NT$', KRW: '\u20a9', THB: '\u0e3f' };
   tbody.innerHTML = filtered.map(s => {
     const d = s.data;
     const status = s.status || 'Draft';
@@ -3144,11 +3187,22 @@ function _populateShipmentForm(record, keepInvoiceNumber) {
   document.getElementById('invoiceNumber').value  = keepInvoiceNumber ? (d.invoiceNumber || '') : '';
   document.getElementById('puRef').value          = d.puRef || '';
   document.getElementById('carrier').value        = d.carrier || '';
+  document.getElementById('trackingNumber').value = d.trackingNumber || '';
   document.getElementById('containerNumber').value = d.containerNumber || '';
   document.getElementById('sealNumber').value     = d.sealNumber || '';
   document.getElementById('consigneeType').value  = d.consigneeType || '';
   document.getElementById('shippingTerm').value   = d.shippingTerm || '';
-  document.getElementById('currency').value       = d.currency || 'USD';
+  const _knownCurr = ['USD','EUR','GBP','HKD','CAD','AUD','SGD','CNY','JPY','MYR','TWD','KRW','THB'];
+  const _savedCurr = d.currency || 'USD';
+  if (_knownCurr.includes(_savedCurr)) {
+    document.getElementById('currency').value = _savedCurr;
+    document.getElementById('currencyCustomWrap').style.display = 'none';
+  } else {
+    document.getElementById('currency').value = 'CUSTOM';
+    document.getElementById('currencyCustom').value = _savedCurr;
+    document.getElementById('currencyCustomWrap').style.display = 'block';
+  }
+  document.getElementById('ciNotes').value         = d.ciNotes || '';
   document.getElementById('shipmentRemarks').value = d.remarks || '';
   populateAddressDropdowns();
   if (record.shipperSelectId)  document.getElementById('shipperSelect').value  = record.shipperSelectId;
@@ -3228,7 +3282,7 @@ function refreshDashboard() {
     container.innerHTML = `<div class="empty-state"><p>No shipments yet. Create your first shipment to get started.</p></div>`;
     return;
   }
-  const currency_symbol = { USD: '$', EUR: '\u20ac', GBP: '\u00a3', HKD: 'HK$', CNY: '\u00a5', JPY: '\u00a5', SGD: 'S$' };
+  const currency_symbol = { USD: '$', EUR: '\u20ac', GBP: '\u00a3', HKD: 'HK$', CAD: 'CA$', AUD: 'A$', SGD: 'S$', CNY: '\u00a5', JPY: '\u00a5', MYR: 'RM', TWD: 'NT$', KRW: '\u20a9', THB: '\u0e3f' };
   container.innerHTML = `<table class="data-table"><thead><tr><th>Date</th><th>Invoice #</th><th>Mode</th><th>Status</th><th>Route</th><th>Value</th><th></th></tr></thead><tbody>` +
     recent.map(s => {
       const d = s.data;
