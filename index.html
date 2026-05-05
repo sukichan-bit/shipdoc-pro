@@ -2517,7 +2517,7 @@ function generateCI(data) {
 
   // Header boxes
   const hasNotify = d.notify && formatAddress(d.notify).trim();
-  const buyerLabel = isSea ? 'Sold To / Buyer' : 'Importer / Delivery Address';
+  const buyerLabel = 'Importer of Record / Consignee';
   let headerGrid;
   if (hasNotify) {
     headerGrid = `
@@ -2655,14 +2655,14 @@ function generatePL(data) {
     headerGrid = `
       <div class="doc-header-grid cols-3">
         <div class="doc-header-box"><div class="box-label">Sender</div><div style="white-space:pre-line;">${esc(formatAddress(d.shipper))}</div></div>
-        <div class="doc-header-box"><div class="box-label">Importer / Sold To</div><div style="white-space:pre-line;">${esc(formatAddress(d.buyer))}</div></div>
+        <div class="doc-header-box"><div class="box-label">Importer of Record / Consignee</div><div style="white-space:pre-line;">${esc(formatAddress(d.buyer))}</div></div>
         <div class="doc-header-box"><div class="box-label">Notify Party</div><div style="white-space:pre-line;">${esc(formatAddress(d.notify))}</div></div>
       </div>`;
   } else {
     headerGrid = `
       <div class="doc-header-grid cols-2">
         <div class="doc-header-box"><div class="box-label">Sender</div><div style="white-space:pre-line;">${esc(formatAddress(d.shipper))}</div></div>
-        <div class="doc-header-box"><div class="box-label">Importer / Sold To</div><div style="white-space:pre-line;">${esc(formatAddress(d.buyer))}</div></div>
+        <div class="doc-header-box"><div class="box-label">Importer of Record / Consignee</div><div style="white-space:pre-line;">${esc(formatAddress(d.buyer))}</div></div>
       </div>`;
   }
 
@@ -2868,7 +2868,7 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
 
   /* ---- Header boxes (Shipper / Buyer / Notify) ---- */
   const hasNotify    = d.notify   && formatAddress(d.notify).trim();
-  const buyerLabel   = isCI ? (isSea ? 'Sold To / Buyer' : 'Importer / Delivery Address') : 'Importer / Sold To';
+  const buyerLabel   = 'Importer of Record / Consignee';
   const shipperLabel = isCI ? 'Shipper' : 'Sender';
   const headerCols   = hasNotify
     ? `<colgroup><col width="33%"><col width="34%"><col width="33%"></colgroup>
