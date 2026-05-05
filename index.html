@@ -2000,7 +2000,7 @@ function renderLineItems() {
         <div style="display:flex;align-items:center;gap:5px;margin-top:4px;flex-wrap:wrap;">
           ${buildHsSelect(li.hsCode, li.hsCodeGeneral||li.hsCode, li.hsCodeUS, li.hsCodeUK, `updateLineItem('${li.id}','hsCode',this.value)`)}
           <input type="text" value="${esc(li.hsCode||'')}" placeholder="HS Code" style="width:120px;padding:3px 7px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;" onchange="updateLineItem('${li.id}','hsCode',this.value)">
-          <span style="font-size:.75rem;color:var(--gray-400);">| Origin: ${esc(li.origin)}</span>
+          ${li.origin ? `<span style="font-size:.75rem;color:var(--gray-400);">| Origin: ${esc(li.origin)}</span>` : ''}
         </div>
       </td>
       <td><input type="number" min="0" value="${li.qty}" style="width:80px; padding:4px 8px; border:1px solid var(--gray-300); border-radius:4px;" onchange="updateLineItem('${li.id}','qty',this.value)"></td>
@@ -2548,7 +2548,7 @@ function generateCI(data) {
         <td>
           <div class="doc-goods-desc">
             <div class="sku">${esc(li.sku)} - ${esc(li.name)}</div>
-            <div class="detail">HS Code: ${esc(li.hsCode)} | Country of Origin: ${esc(li.origin)}</div>
+            <div class="detail">HS Code: ${esc(li.hsCode)}${li.origin ? ' | Country of Origin: ' + esc(li.origin) : ''}</div>
           </div>
         </td>
         <td class="text-right">${li.qty.toLocaleString()}</td>
@@ -2904,7 +2904,7 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
     if (d.pallets && d.pallets.length > 0) totalWt = d.pallets.reduce((s, p) => s + (p.grossWeight || 0), 0);
     const itemRows = d.lineItems.map(li =>
       `<tr>
-        ${TD(`<strong>${esc(li.sku)} - ${esc(li.name)}</strong><br><span style="color:#555;font-size:7.5pt;">HS Code: ${esc(li.hsCode)} | Origin: ${esc(li.origin)}</span>`)}
+        ${TD(`<strong>${esc(li.sku)} - ${esc(li.name)}</strong><br><span style="color:#555;font-size:7.5pt;">HS Code: ${esc(li.hsCode)}${li.origin ? ' | Origin: ' + esc(li.origin) : ''}</span>`)}
         ${TDR(li.qty.toLocaleString())}
         ${TD('pcs')}
         ${TDR((li.qty * li.unitWeight).toFixed(2))}
