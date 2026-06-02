@@ -1000,7 +1000,7 @@ table { border-collapse: collapse; width: 100%; }
         <div class="shipment-tab" id="tab-pallets">
           <div class="card">
             <div class="card-header">
-              <h2>Pallet Details (Packing List)</h2>
+              <h2>Pallet Details (Packing List) <span id="palletCount" style="font-size:0.75rem;font-weight:600;background:#f97316;color:#fff;padding:2px 10px;border-radius:999px;vertical-align:middle;display:none;"></span></h2>
               <div class="btn-group">
                 <button class="btn btn-outline btn-sm" onclick="openPalletPresetsModal()">📐 Manage Presets</button>
                 <button class="btn btn-primary btn-sm" onclick="addPallet()">+ Add Pallet</button>
@@ -2254,15 +2254,21 @@ function renderPallets() {
   const container = document.getElementById('palletsContainer');
   const empty = document.getElementById('palletsEmpty');
   const totalsCard = document.getElementById('palletTotalsCard');
+  const palletCount = document.getElementById('palletCount');
   if (!pallets.length) {
     empty.classList.remove('hidden');
     totalsCard.style.display = 'none';
     container.innerHTML = '';
     container.appendChild(empty);
+    if (palletCount) palletCount.style.display = 'none';
     return;
   }
   empty.classList.add('hidden');
   totalsCard.style.display = '';
+  if (palletCount) {
+    palletCount.textContent = `${pallets.length} Pallet${pallets.length !== 1 ? 's' : ''}`;
+    palletCount.style.display = 'inline';
+  }
   const presets = loadStore('palletPresets');
   const presetOptions = `<option value="">— Select preset —</option>` +
     presets.map(pr => `<option value="${pr.id}">${esc(pr.name)} (${pr.dimL}×${pr.dimW}×${pr.dimH})</option>`).join('');
