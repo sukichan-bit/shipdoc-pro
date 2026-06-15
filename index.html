@@ -1397,11 +1397,20 @@ const pageTitles = {
   products: 'Product Catalog', history: 'Shipment History', settings: 'Settings'
 };
 
-function navigateTo(page) {
+const pageRoutes = {
+  dashboard: '/', shipment: '/shipment', addresses: '/addresses',
+  products: '/products', history: '/history', settings: '/settings'
+};
+const routeToPage = Object.fromEntries(Object.entries(pageRoutes).map(([k,v]) => [v, k]));
+
+function navigateTo(page, pushState = true) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   document.querySelectorAll('.sidebar-nav button').forEach(b => b.classList.toggle('active', b.dataset.page === page));
-  document.getElementById('pageTitle').textContent = pageTitles[page] || page;
+  const title = pageTitles[page] || page;
+  document.getElementById('pageTitle').textContent = title;
+  document.title = title + ' — ShipDoc Pro';
+  if (pushState) history.pushState({ page }, '', pageRoutes[page] || '/');
   if (page === 'dashboard') refreshDashboard();
   if (page === 'addresses') renderAddresses();
   if (page === 'products') renderProducts();
@@ -1410,12 +1419,23 @@ function navigateTo(page) {
   if (page === 'settings') loadSettings();
 }
 
+window.addEventListener('popstate', e => {
+  const page = (e.state && e.state.page) || routeToPage[location.pathname] || 'dashboard';
+  navigateTo(page, false);
+});
+
 document.querySelectorAll('.sidebar-nav button').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.page === 'shipment') { _editingShipmentId = null; _updateSaveButtons(); }
     navigateTo(btn.dataset.page);
   });
 });
+
+// Restore page from URL on initial load
+(function() {
+  const page = routeToPage[location.pathname] || 'dashboard';
+  if (page !== 'dashboard') navigateTo(page, false);
+})();
 
 /* ============================================================
    SHIPMENT TABS
