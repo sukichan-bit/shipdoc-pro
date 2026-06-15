@@ -68,6 +68,11 @@ app.delete('/api/store/:key', async (req, res) => {
   }
 });
 
+// SPA fallback — serve index.html for all non-API routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 initDb().then(() => {
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }).catch(err => {
