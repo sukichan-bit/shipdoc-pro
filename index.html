@@ -1420,8 +1420,12 @@ function navigateTo(page, pushState = true) {
 }
 
 window.addEventListener('popstate', e => {
-  const page = (e.state && e.state.page) || routeToPage[location.pathname] || 'dashboard';
-  navigateTo(page, false);
+  if (e.state && e.state.shipmentId) {
+    _loadShipmentById(e.state.shipmentId, false);
+  } else {
+    const page = (e.state && e.state.page) || routeToPage[location.pathname] || 'dashboard';
+    navigateTo(page, false);
+  }
 });
 
 document.querySelectorAll('.sidebar-nav button').forEach(btn => {
@@ -1433,8 +1437,13 @@ document.querySelectorAll('.sidebar-nav button').forEach(btn => {
 
 // Restore page from URL on initial load
 (function() {
-  const page = routeToPage[location.pathname] || 'dashboard';
-  if (page !== 'dashboard') navigateTo(page, false);
+  const match = location.pathname.match(/^\/shipment\/(.+)$/);
+  if (match) {
+    _loadShipmentById(match[1], false);
+  } else {
+    const page = routeToPage[location.pathname] || 'dashboard';
+    if (page !== 'dashboard') navigateTo(page, false);
+  }
 })();
 
 /* ============================================================
@@ -3304,13 +3313,25 @@ function _populateShipmentForm(record, keepInvoiceNumber) {
   renderPallets();
 }
 
-function loadShipment(id) {
+function _loadShipmentById(id, pushState = true) {
   const record = loadStore('shipments').find(s => s.id === id);
-  if (!record) return;
+  if (!record) { navigateTo('history'); return; }
   _editingShipmentId = id;
   _populateShipmentForm(record, true);
   _updateSaveButtons();
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-shipment').classList.add('active');
+  document.querySelectorAll('.sidebar-nav button').forEach(b => b.classList.toggle('active', b.dataset.page === 'shipment'));
+  const label = record.invoiceNo || id;
+  document.getElementById('pageTitle').textContent = 'Shipment — ' + label;
+  document.title = 'Shipment — ' + label + ' — ShipDoc Pro';
+  if (pushState) history.pushState({ shipmentId: id }, '', '/shipment/' + id);
+  populateAddressDropdowns();
   toast('Shipment loaded — changes will update the original.');
+}
+
+function loadShipment(id) {
+  _loadShipmentById(id, true);
 }
 
 function cloneShipment(id) {
