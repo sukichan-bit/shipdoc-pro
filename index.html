@@ -866,6 +866,10 @@ table { border-collapse: collapse; width: 100%; }
             <div class="card-header"><h2>Shipment Information</h2></div>
             <div class="card-body">
               <div class="form-grid">
+                <div class="form-group" style="grid-column:1/-1">
+                  <label>Company Name <span style="font-weight:400;color:var(--gray-400);font-size:0.78rem;">(shown on CIPL)</span></label>
+                  <input type="text" id="shipmentCompanyName" placeholder="Your company name">
+                </div>
                 <div class="form-group">
                   <label>Invoice Date</label>
                   <input type="date" id="invoiceDate">
@@ -1415,7 +1419,11 @@ function navigateTo(page, pushState = true) {
   if (page === 'addresses') renderAddresses();
   if (page === 'products') renderProducts();
   if (page === 'history') renderHistory();
-  if (page === 'shipment') populateAddressDropdowns();
+  if (page === 'shipment') {
+    populateAddressDropdowns();
+    const el = document.getElementById('shipmentCompanyName');
+    if (el && !el.value) el.value = loadObj('settings').companyName || '';
+  }
   if (page === 'settings') loadSettings();
 }
 
@@ -2550,7 +2558,7 @@ function getShipmentData() {
     pallets: [...pallets],
     ciNotes: val('ciNotes'),
     remarks: val('shipmentRemarks'),
-    companyName: loadObj('settings').companyName || '',
+    companyName: val('shipmentCompanyName') || loadObj('settings').companyName || '',
     authText: loadObj('settings').authText || 'I declare that the above information is true and correct to the best of my knowledge.'
   };
 }
@@ -3289,6 +3297,7 @@ function _populateShipmentForm(record, keepInvoiceNumber) {
   _shipmentDirty = false;
   navigateTo('shipment');
   setMode(d.mode);
+  document.getElementById('shipmentCompanyName').value = d.companyName || loadObj('settings').companyName || '';
   document.getElementById('invoiceDate').value    = d.invoiceDate || '';
   document.getElementById('invoiceNumber').value  = keepInvoiceNumber ? (d.invoiceNumber || '') : '';
   document.getElementById('puRef').value          = d.puRef || '';
