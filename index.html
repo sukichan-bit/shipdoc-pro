@@ -1435,16 +1435,16 @@ document.querySelectorAll('.sidebar-nav button').forEach(btn => {
   });
 });
 
-// Restore page from URL on initial load
-(function() {
+// Restore page from URL on initial load — wait for server data before rendering
+(window.__dbSyncReady || Promise.resolve()).finally(() => {
   const match = location.pathname.match(/^\/shipment\/(.+)$/);
   if (match) {
     _loadShipmentById(match[1], false);
   } else {
     const page = routeToPage[location.pathname] || 'dashboard';
-    if (page !== 'dashboard') navigateTo(page, false);
+    navigateTo(page, false);
   }
-})();
+});
 
 /* ============================================================
    SHIPMENT TABS
