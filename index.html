@@ -768,7 +768,7 @@ table { border-collapse: collapse; width: 100%; }
           <div class="card-header"><h2>Quick Start</h2></div>
           <div class="card-body">
             <div class="quick-start-grid">
-              <div class="quick-start-card" onclick="_editingShipmentId=null;_updateSaveButtons();navigateTo('shipment')">
+              <div class="quick-start-card" onclick="_resetShipmentForm();navigateTo('shipment')">
                 <div class="qs-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                 </div>
@@ -1457,7 +1457,7 @@ document.querySelectorAll('.sidebar-nav button').forEach(btn => {
         if (!document.getElementById('invoiceNumber').value) return; // save failed (no invoice no.)
       }
     }
-    if (btn.dataset.page === 'shipment') { _editingShipmentId = null; _updateSaveButtons(); }
+    if (btn.dataset.page === 'shipment') { _resetShipmentForm(); }
     navigateTo(btn.dataset.page);
   });
 });
@@ -3298,6 +3298,36 @@ function renderHistory() {
         </td>
       </tr>`;
   }).join('');
+}
+
+function _resetShipmentForm() {
+  _editingShipmentId = null;
+  _shipmentDirty = false;
+  setMode('SEA');
+  document.getElementById('shipmentCompanyName').value = loadObj('settings').companyName || '';
+  document.getElementById('invoiceDate').value    = '';
+  document.getElementById('invoiceNumber').value  = '';
+  document.getElementById('puRef').value          = '';
+  _setCarrierField('');
+  document.getElementById('trackingNumber').value  = '';
+  document.getElementById('containerNumber').value = '';
+  document.getElementById('sealNumber').value      = '';
+  document.getElementById('consigneeType').value   = 'DIRECT CONSUMER';
+  document.getElementById('shippingTerm').value    = document.getElementById('shippingTerm').options[0]?.value || '';
+  document.getElementById('currency').value        = 'USD';
+  document.getElementById('currencyCustomWrap').style.display = 'none';
+  document.getElementById('ciNotes').value         = '';
+  document.getElementById('shipmentRemarks').value = '';
+  populateAddressDropdowns();
+  ['shipperSelect','buyerSelect','notifySelect','pickupSelect','deliverySelect'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  lineItems = [];
+  renderLineItems();
+  pallets = [];
+  renderPallets();
+  _updateSaveButtons();
 }
 
 function _populateShipmentForm(record, keepInvoiceNumber) {
