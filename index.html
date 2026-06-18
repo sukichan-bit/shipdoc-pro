@@ -2845,8 +2845,13 @@ function exportPDF(data, which) {
   if (which === 'both') printPage.innerHTML = `<div class="print-page print-doc">${generateCI(data)}</div><div class="print-page print-doc">${generatePL(data)}</div>`;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   printPage.classList.add('active');
+  const invoiceNo = (data.invoiceNumber || data.puRef || 'shipment').replace(/[^a-zA-Z0-9_\-]/g, '_');
+  const printTitle = which === 'both' ? `CIPL_${invoiceNo}` : which === 'ci' ? `CI_${invoiceNo}` : `PL_${invoiceNo}`;
+  const prevTitle = document.title;
+  document.title = printTitle;
   setTimeout(() => {
     window.print();
+    document.title = prevTitle;
     navigateTo('shipment');
     switchShipmentTab(document.querySelector('[data-tab="tab-preview"]'));
   }, 200);
@@ -3098,7 +3103,8 @@ function exportExcel(data, which, ref) {
   td, th { vertical-align: top; }
 </style></head>
 <body style="padding:8px;">${body}</body></html>`;
-    downloadBlob(content, `${ref}_${doc.name}.xls`, 'application/vnd.ms-excel');
+    const xlsName = which === 'both' ? `CIPL_${ref}` : (doc.isCI ? `CI_${ref}` : `PL_${ref}`);
+    downloadBlob(content, `${xlsName}.xls`, 'application/vnd.ms-excel');
   });
   toast('Excel file(s) downloaded');
 }
@@ -3128,7 +3134,8 @@ function exportWord(data, which, ref) {
   img { display: block; }
 </style></head>
 <body>${body}</body></html>`;
-    downloadBlob(content, `${ref}_${doc.name}.doc`, 'application/msword');
+    const docName = which === 'both' ? `CIPL_${ref}` : (doc.isCI ? `CI_${ref}` : `PL_${ref}`);
+    downloadBlob(content, `${docName}.doc`, 'application/msword');
   });
   toast('Word file(s) downloaded');
 }
