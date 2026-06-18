@@ -1428,8 +1428,19 @@ window.addEventListener('popstate', e => {
   }
 });
 
+document.getElementById('page-shipment').addEventListener('input',  () => { _shipmentDirty = true; });
+document.getElementById('page-shipment').addEventListener('change', () => { _shipmentDirty = true; });
+
 document.querySelectorAll('.sidebar-nav button').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (btn.dataset.page !== 'shipment' && _shipmentDirty) {
+      if (!confirm('You have unsaved changes. Save shipment before leaving?')) {
+        _shipmentDirty = false;
+      } else {
+        saveShipment();
+        if (!document.getElementById('invoiceNumber').value) return; // save failed (no invoice no.)
+      }
+    }
     if (btn.dataset.page === 'shipment') { _editingShipmentId = null; _updateSaveButtons(); }
     navigateTo(btn.dataset.page);
   });
@@ -2072,6 +2083,11 @@ function updateLineTotals() {
    ============================================================ */
 let pallets = [];
 let _editingShipmentId = null; // set when a history record is loaded for editing
+let _shipmentDirty = false;
+
+window.addEventListener('beforeunload', e => {
+  if (_shipmentDirty) { e.preventDefault(); e.returnValue = ''; }
+});
 
 function _updateSaveButtons() {
   const editing = !!_editingShipmentId;
@@ -3174,6 +3190,7 @@ function saveShipment() {
     if (idx !== -1) {
       shipments[idx] = { ...shipments[idx], savedAt: new Date().toISOString(), data, ..._collectSelectionIds() };
       saveStore('shipments', shipments);
+      _shipmentDirty = false;
       toast('Shipment updated ✓');
       return;
     }
@@ -3184,6 +3201,7 @@ function saveShipment() {
   _editingShipmentId = record.id;
   saveStore('shipments', shipments);
   _updateSaveButtons();
+  _shipmentDirty = false;
   toast('Shipment saved to history');
 }
 
@@ -3196,6 +3214,7 @@ function saveNewShipment() {
   _editingShipmentId = record.id;
   saveStore('shipments', shipments);
   _updateSaveButtons();
+  _shipmentDirty = false;
   toast('Saved as new shipment');
 }
 
@@ -3267,6 +3286,7 @@ function renderHistory() {
 
 function _populateShipmentForm(record, keepInvoiceNumber) {
   const d = record.data;
+  _shipmentDirty = false;
   navigateTo('shipment');
   setMode(d.mode);
   document.getElementById('invoiceDate').value    = d.invoiceDate || '';
