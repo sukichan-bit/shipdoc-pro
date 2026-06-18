@@ -884,7 +884,15 @@ table { border-collapse: collapse; width: 100%; }
                 </div>
                 <div class="form-group">
                   <label>Carrier</label>
-                  <input type="text" id="carrier" value="">
+                  <select id="carrierSelect" onchange="onCarrierSelect(this)">
+                    <option value="">-- Select Carrier --</option>
+                    <option value="Lead Global Logistics Limited">Lead Global Logistics Limited</option>
+                    <option value="DHL">DHL</option>
+                    <option value="Federal Express">Federal Express</option>
+                    <option value="UPS">UPS</option>
+                    <option value="__other__">Other (manual entry)</option>
+                  </select>
+                  <input type="text" id="carrier" placeholder="Enter carrier name" style="display:none;margin-top:6px;">
                 </div>
                 <div class="form-group">
                   <label>Tracking Number</label>
@@ -3301,7 +3309,7 @@ function _populateShipmentForm(record, keepInvoiceNumber) {
   document.getElementById('invoiceDate').value    = d.invoiceDate || '';
   document.getElementById('invoiceNumber').value  = keepInvoiceNumber ? (d.invoiceNumber || '') : '';
   document.getElementById('puRef').value          = d.puRef || '';
-  document.getElementById('carrier').value        = d.carrier || '';
+  _setCarrierField(d.carrier || '');
   document.getElementById('trackingNumber').value = d.trackingNumber || '';
   document.getElementById('containerNumber').value = d.containerNumber || '';
   document.getElementById('sealNumber').value     = d.sealNumber || '';
@@ -3763,6 +3771,37 @@ function _renderSyncUI() {
    UTILITY
    ============================================================ */
 function val(id) { return document.getElementById(id)?.value?.trim() || ''; }
+
+function onCarrierSelect(sel) {
+  const input = document.getElementById('carrier');
+  if (sel.value === '__other__') {
+    input.style.display = '';
+    input.value = '';
+    input.focus();
+  } else {
+    input.style.display = 'none';
+    input.value = sel.value;
+  }
+}
+
+function _setCarrierField(value) {
+  const sel = document.getElementById('carrierSelect');
+  const input = document.getElementById('carrier');
+  const known = Array.from(sel.options).map(o => o.value).filter(v => v && v !== '__other__');
+  if (!value) {
+    sel.value = '';
+    input.style.display = 'none';
+    input.value = '';
+  } else if (known.includes(value)) {
+    sel.value = value;
+    input.style.display = 'none';
+    input.value = value;
+  } else {
+    sel.value = '__other__';
+    input.style.display = '';
+    input.value = value;
+  }
+}
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
 
