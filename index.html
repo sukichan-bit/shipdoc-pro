@@ -1993,41 +1993,77 @@ function saveCurrentAsAddressProfile() {
   toast('Address profile saved');
 }
 
+function _addrProfileSelectOpts(addresses, selectedId) {
+  return `<option value="">— None —</option>` +
+    addresses.map(a => `<option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>${esc(a.company || a.name)} — ${esc(a.country)}</option>`).join('');
+}
+
 function openAddressProfilesModal() {
   const profiles = loadStore('addressProfiles');
   const addresses = loadStore('addresses');
-  const addrName = id => { const a = addresses.find(a => a.id === id); return a ? esc(a.company || a.name) : '—'; };
-  const rows = profiles.length
-    ? profiles.map(p => `
-        <tr>
-          <td>${esc(p.name)}</td>
-          <td>${addrName(p.shipperSelectId)}</td>
-          <td>${addrName(p.buyerSelectId)}</td>
-          <td>${addrName(p.deliverySelectId)}</td>
-          <td><button class="btn btn-danger btn-sm" onclick="deleteAddressProfile('${p.id}')">Delete</button></td>
-        </tr>`).join('')
-    : '<tr><td colspan="5" style="text-align:center;color:var(--gray-400)">No profiles saved yet</td></tr>';
-  document.body.insertAdjacentHTML('beforeend', `
-    <div class="modal-overlay" id="addrProfileModal">
-      <div class="modal" style="max-width:680px;">
-        <div class="modal-header">
-          <h3>Address Profiles</h3>
-          <button class="modal-close" onclick="document.getElementById('addrProfileModal').remove()">&times;</button>
+  const cards = profiles.length ? profiles.map(p => `
+    <div style="border:1px solid var(--gray-200);border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div style="grid-column:1/-1;">
+          <label style="font-size:.72rem;font-weight:600;color:var(--gray-400);text-transform:uppercase;">Profile Name</label>
+          <input type="text" value="${esc(p.name)}" id="apn_${p.id}" style="width:100%;margin-top:3px;">
         </div>
-        <div class="modal-body">
-          <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
-            <thead><tr style="text-align:left;border-bottom:1px solid var(--gray-200);">
-              <th style="padding:6px 8px;">Profile Name</th>
-              <th style="padding:6px 8px;">Shipper</th>
-              <th style="padding:6px 8px;">Buyer</th>
-              <th style="padding:6px 8px;">Delivery</th>
-              <th style="padding:6px 8px;"></th>
-            </tr></thead>
-            <tbody id="addrProfileRows">${rows}</tbody>
-          </table>
+        <div>
+          <label style="font-size:.72rem;font-weight:600;color:var(--gray-400);text-transform:uppercase;">Shipper</label>
+          <select id="aps_${p.id}" style="width:100%;margin-top:3px;">${_addrProfileSelectOpts(addresses, p.shipperSelectId)}</select>
+        </div>
+        <div>
+          <label style="font-size:.72rem;font-weight:600;color:var(--gray-400);text-transform:uppercase;">Buyer</label>
+          <select id="apb_${p.id}" style="width:100%;margin-top:3px;">${_addrProfileSelectOpts(addresses, p.buyerSelectId)}</select>
+        </div>
+        <div>
+          <label style="font-size:.72rem;font-weight:600;color:var(--gray-400);text-transform:uppercase;">Notify Party</label>
+          <select id="apn2_${p.id}" style="width:100%;margin-top:3px;">${_addrProfileSelectOpts(addresses, p.notifySelectId)}</select>
+        </div>
+        <div>
+          <label style="font-size:.72rem;font-weight:600;color:var(--gray-400);text-transform:uppercase;">Pickup</label>
+          <select id="appu_${p.id}" style="width:100%;margin-top:3px;">${_addrProfileSelectOpts(addresses, p.pickupSelectId)}</select>
+        </div>
+        <div>
+          <label style="font-size:.72rem;font-weight:600;color:var(--gray-400);text-transform:uppercase;">Delivery</label>
+          <select id="apd_${p.id}" style="width:100%;margin-top:3px;">${_addrProfileSelectOpts(addresses, p.deliverySelectId)}</select>
         </div>
       </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-danger btn-sm" onclick="deleteAddressProfile('${p.id}')">Delete</button>
+        <button class="btn btn-success btn-sm" onclick="saveAddressProfileEdit('${p.id}')">Save Changes</button>
+      </div>
+    </div>`).join('')
+    : '<p style="text-align:center;color:var(--gray-400);padding:24px 0;">No profiles saved yet</p>';
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="addrProfileModal">
+      <div class="modal" style="max-width:620px;max-height:80vh;overflow-y:auto;">
+        <div class="modal-header">
+          <h3>Manage Address Profiles</h3>
+          <button class="modal-close" onclick="document.getElementById('addrProfileModal').remove()">&times;</button>
+        </div>
+        <div class="modal-body">${cards}</div>
+      </div>
     </div>`);
+}
+
+function saveAddressProfileEdit(id) {
+  const profiles = loadStore('addressProfiles');
+  const idx = profiles.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  profiles[idx] = {
+    ...profiles[idx],
+    name:             document.getElementById('apn_'  + id)?.value.trim() || profiles[idx].name,
+    shipperSelectId:  document.getElementById('aps_'  + id)?.value || '',
+    buyerSelectId:    document.getElementById('apb_'  + id)?.value || '',
+    notifySelectId:   document.getElementById('apn2_' + id)?.value || '',
+    pickupSelectId:   document.getElementById('appu_' + id)?.value || '',
+    deliverySelectId: document.getElementById('apd_'  + id)?.value || '',
+  };
+  saveStore('addressProfiles', profiles);
+  populateProfileDropdown();
+  toast('Profile updated');
 }
 
 function deleteAddressProfile(id) {
