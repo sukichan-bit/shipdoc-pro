@@ -827,6 +827,16 @@ table { border-collapse: collapse; width: 100%; }
           <div class="card">
             <div class="card-header"><h2>Addresses</h2></div>
             <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label>ADDRESS PROFILE</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <select id="addressProfileSelect" onchange="applyAddressProfile(this.value)" style="flex:1;">
+                    <option value="">— Select profile —</option>
+                  </select>
+                  <button class="btn btn-outline btn-sm" onclick="saveCurrentAsAddressProfile()">💾 Save as Profile</button>
+                  <button class="btn btn-outline btn-sm" onclick="openAddressProfilesModal()">🗑 Manage</button>
+                </div>
+              </div>
               <div class="form-grid">
                 <div class="form-group">
                   <label>Shipper</label>
@@ -1355,7 +1365,8 @@ const STORE_KEYS = {
   palletPresets: 'sdg_palletPresets',
   signature: 'sdg_signature',
   stamp: 'sdg_stamp',
-  letterheads: 'sdg_letterheads'
+  letterheads: 'sdg_letterheads',
+  addressProfiles: 'sdg_addressProfiles'
 };
 
 let selectedLetterheadId = null; // null = no letterhead
@@ -1942,6 +1953,91 @@ function populateAddressDropdowns() {
     sel.innerHTML = opts;
     if (current) sel.value = current;
   });
+  populateProfileDropdown();
+}
+
+function populateProfileDropdown() {
+  const sel = document.getElementById('addressProfileSelect');
+  if (!sel) return;
+  const current = sel.value;
+  const profiles = loadStore('addressProfiles');
+  sel.innerHTML = '<option value="">— Select profile —</option>' +
+    profiles.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  if (current) sel.value = current;
+}
+
+function applyAddressProfile(profileId) {
+  if (!profileId) return;
+  const profile = loadStore('addressProfiles').find(p => p.id === profileId);
+  if (!profile) return;
+  ['shipper','buyer','notify','pickup','delivery'].forEach(role => {
+    const el = document.getElementById(role + 'Select');
+    if (el) el.value = profile[role + 'SelectId'] || '';
+  });
+  toast('Address profile applied');
+}
+
+function saveCurrentAsAddressProfile() {
+  const ids = _collectSelectionIds();
+  if (!ids.shipperSelectId && !ids.buyerSelectId && !ids.deliverySelectId) {
+    toast('Select at least one address before saving a profile', 'error'); return;
+  }
+  const name = prompt('Profile name (e.g. "GPS to HK"):');
+  if (!name || !name.trim()) return;
+  const profiles = loadStore('addressProfiles');
+  profiles.push({ id: uid(), name: name.trim(), ...ids });
+  saveStore('addressProfiles', profiles);
+  populateProfileDropdown();
+  document.getElementById('addressProfileSelect').value =
+    loadStore('addressProfiles').find(p => p.name === name.trim())?.id || '';
+  toast('Address profile saved');
+}
+
+function openAddressProfilesModal() {
+  const profiles = loadStore('addressProfiles');
+  const addresses = loadStore('addresses');
+  const addrName = id => { const a = addresses.find(a => a.id === id); return a ? esc(a.company || a.name) : '—'; };
+  const rows = profiles.length
+    ? profiles.map(p => `
+        <tr>
+          <td>${esc(p.name)}</td>
+          <td>${addrName(p.shipperSelectId)}</td>
+          <td>${addrName(p.buyerSelectId)}</td>
+          <td>${addrName(p.deliverySelectId)}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="deleteAddressProfile('${p.id}')">Delete</button></td>
+        </tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--gray-400)">No profiles saved yet</td></tr>';
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="addrProfileModal">
+      <div class="modal" style="max-width:680px;">
+        <div class="modal-header">
+          <h3>Address Profiles</h3>
+          <button class="modal-close" onclick="document.getElementById('addrProfileModal').remove()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+            <thead><tr style="text-align:left;border-bottom:1px solid var(--gray-200);">
+              <th style="padding:6px 8px;">Profile Name</th>
+              <th style="padding:6px 8px;">Shipper</th>
+              <th style="padding:6px 8px;">Buyer</th>
+              <th style="padding:6px 8px;">Delivery</th>
+              <th style="padding:6px 8px;"></th>
+            </tr></thead>
+            <tbody id="addrProfileRows">${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`);
+}
+
+function deleteAddressProfile(id) {
+  if (!confirm('Delete this profile?')) return;
+  saveStore('addressProfiles', loadStore('addressProfiles').filter(p => p.id !== id));
+  populateProfileDropdown();
+  const modal = document.getElementById('addrProfileModal');
+  if (modal) modal.remove();
+  openAddressProfilesModal();
+  toast('Profile deleted');
 }
 
 function onAddressSelect(sel, role) {
@@ -3319,7 +3415,7 @@ function _resetShipmentForm() {
   document.getElementById('ciNotes').value         = '';
   document.getElementById('shipmentRemarks').value = '';
   populateAddressDropdowns();
-  ['shipperSelect','buyerSelect','notifySelect','pickupSelect','deliverySelect'].forEach(id => {
+  ['shipperSelect','buyerSelect','notifySelect','pickupSelect','deliverySelect','addressProfileSelect'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -3363,6 +3459,15 @@ function _populateShipmentForm(record, keepInvoiceNumber) {
   if (record.notifySelectId)   document.getElementById('notifySelect').value   = record.notifySelectId;
   if (record.pickupSelectId)   document.getElementById('pickupSelect').value   = record.pickupSelectId;
   if (record.deliverySelectId) document.getElementById('deliverySelect').value = record.deliverySelectId;
+  // Auto-select matching profile if one exists
+  const _ids = _collectSelectionIds();
+  const _match = loadStore('addressProfiles').find(p =>
+    p.shipperSelectId  === (_ids.shipperSelectId  || '') &&
+    p.buyerSelectId    === (_ids.buyerSelectId    || '') &&
+    p.deliverySelectId === (_ids.deliverySelectId || '')
+  );
+  const _profSel = document.getElementById('addressProfileSelect');
+  if (_profSel) _profSel.value = _match ? _match.id : '';
   // Enrich restored items with latest HS codes from product catalog
   const _products = loadStore('products');
   lineItems = (d.lineItems || []).map(li => {
