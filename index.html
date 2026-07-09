@@ -2168,7 +2168,7 @@ function buildHsSelect(activeCode, generalCode, usCode, ukCode, onchangeExpr) {
 function updateLineItem(id, field, value) {
   const item = lineItems.find(li => li.id === id);
   if (!item) return;
-  if (['qty','unitValue','unitWeight'].includes(field)) {
+  if (['qty','unitValue','unitWeight','netWeight'].includes(field)) {
     item[field] = parseFloat(value) || 0;
   } else {
     item[field] = value;
@@ -2184,7 +2184,8 @@ function renderLineItems() {
   empty.classList.add('hidden');
   tbody.innerHTML = lineItems.map(li => {
     const totalCustoms = (li.qty * li.unitValue);
-    const netWeight = (li.qty * li.unitWeight);
+    const calcNetWeight = (li.qty * li.unitWeight);
+    const netWeight = li.netWeight != null ? li.netWeight : calcNetWeight;
     return `
     <tr>
       <td>
@@ -2197,7 +2198,7 @@ function renderLineItems() {
       </td>
       <td><input type="number" min="0" value="${li.qty}" style="width:80px; padding:4px 8px; border:1px solid var(--gray-300); border-radius:4px;" onchange="updateLineItem('${li.id}','qty',this.value)"></td>
       <td>pcs</td>
-      <td>${netWeight.toFixed(2)} kg</td>
+      <td><input type="number" step="0.01" min="0" value="${netWeight.toFixed(2)}" style="width:90px; padding:4px 8px; border:1px solid var(--gray-300); border-radius:4px;" onchange="updateLineItem('${li.id}','netWeight',this.value)"> kg</td>
       <td><input type="number" step="0.01" min="0" value="${li.unitValue}" style="width:90px; padding:4px 8px; border:1px solid var(--gray-300); border-radius:4px;" onchange="updateLineItem('${li.id}','unitValue',this.value)"> ${currency}</td>
       <td>${totalCustoms.toFixed(2)} ${currency}</td>
       <td><button class="btn btn-danger btn-sm" onclick="removeLineItem('${li.id}')" title="Remove">&times;</button></td>
@@ -2218,7 +2219,7 @@ function updateLineTotals() {
   let totalPcs = 0, totalWt = 0, totalVal = 0;
   lineItems.forEach(li => {
     totalPcs += li.qty;
-    totalWt += li.qty * li.unitWeight;
+    totalWt += li.netWeight != null ? li.netWeight : li.qty * li.unitWeight;
     totalVal += li.qty * li.unitValue;
   });
   document.getElementById('totalPcs').textContent = totalPcs + ' pcs';
@@ -2708,7 +2709,7 @@ function generateCI(data) {
   const isSea = d.mode === 'SEA';
   const currency = d.currency;
   let totalPcs = 0, totalWt = 0, totalVal = 0;
-  d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
+  d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.netWeight != null ? li.netWeight : li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
   // Sync CI weight with PL: use pallet gross weights when available
   if (d.pallets && d.pallets.length > 0) {
     totalWt = d.pallets.reduce((sum, p) => sum + (p.grossWeight || 0), 0);
@@ -2760,7 +2761,7 @@ function generateCI(data) {
 
   // Table
   const rows = d.lineItems.map(li => {
-    const netWt = (li.qty * li.unitWeight);
+    const netWt = li.netWeight != null ? li.netWeight : (li.qty * li.unitWeight);
     const total = (li.qty * li.unitValue);
     return `
       <tr>
@@ -3124,14 +3125,14 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
   let itemsTable = '';
   if (isCI) {
     let totalPcs = 0, totalWt = 0, totalVal = 0;
-    d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
+    d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.netWeight != null ? li.netWeight : li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
     if (d.pallets && d.pallets.length > 0) totalWt = d.pallets.reduce((s, p) => s + (p.grossWeight || 0), 0);
     const itemRows = d.lineItems.map(li =>
       `<tr>
         ${TD(`<strong>${esc(li.sku)} - ${esc(li.name)}</strong><br><span style="color:#555;font-size:7.5pt;">HS Code: ${esc(li.hsCode)}${li.origin ? ' | Origin: ' + esc(li.origin) : ''}</span>`)}
         ${TDR(li.qty.toLocaleString())}
         ${TD('pcs')}
-        ${TDR((li.qty * li.unitWeight).toFixed(2))}
+        ${TDR((li.netWeight != null ? li.netWeight : li.qty * li.unitWeight).toFixed(2))}
         ${TDR(li.unitValue.toFixed(2))}
         ${TDR((li.qty * li.unitValue).toFixed(2))}
       </tr>`).join('');
