@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shipping Document Generator</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚢</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -2116,6 +2117,8 @@ function applyAddressProfile(profileId) {
     const el = document.getElementById(role + 'Select');
     if (el) el.value = profile[role + 'SelectId'] || '';
   });
+  if (profile.companyName) document.getElementById('shipmentCompanyName').value = profile.companyName;
+  if (profile.shippingTerm) document.getElementById('shippingTerm').value = profile.shippingTerm;
   toast('Address profile applied');
 }
 
@@ -2127,7 +2130,10 @@ function saveCurrentAsAddressProfile() {
   const name = prompt('Profile name (e.g. "GPS to HK"):');
   if (!name || !name.trim()) return;
   const profiles = loadStore('addressProfiles');
-  profiles.push({ id: uid(), name: name.trim(), ...ids });
+  profiles.push({ id: uid(), name: name.trim(), ...ids,
+    companyName: val('shipmentCompanyName') || '',
+    shippingTerm: document.getElementById('shippingTerm')?.value || '',
+  });
   saveStore('addressProfiles', profiles);
   populateProfileDropdown();
   document.getElementById('addressProfileSelect').value =
@@ -2170,6 +2176,24 @@ function openAddressProfilesModal() {
           <label style="font-size:.72rem;font-weight:600;color:var(--gray-400);text-transform:uppercase;">Delivery</label>
           <select id="apd_${p.id}" style="width:100%;margin-top:3px;">${_addrProfileSelectOpts(addresses, p.deliverySelectId)}</select>
         </div>
+        <div>
+          <label style="font-size:.72rem;font-weight:600;color:var(--gray-400);text-transform:uppercase;">Company Name (auto-fill)</label>
+          <input type="text" value="${esc(p.companyName||'')}" id="apcn_${p.id}" placeholder="e.g. IM8 Limited" style="width:100%;margin-top:3px;">
+        </div>
+        <div>
+          <label style="font-size:.72rem;font-weight:600;color:var(--gray-400);text-transform:uppercase;">Shipping Term (auto-fill)</label>
+          <select id="apst_${p.id}" style="width:100%;margin-top:3px;">
+            <option value="">— unchanged —</option>
+            <option value="Ex Work" ${(p.shippingTerm||'')==='Ex Work'?'selected':''}>Ex Work (EXW)</option>
+            <option value="FOB" ${(p.shippingTerm||'')==='FOB'?'selected':''}>FOB</option>
+            <option value="CIF" ${(p.shippingTerm||'')==='CIF'?'selected':''}>CIF</option>
+            <option value="DAP" ${(p.shippingTerm||'')==='DAP'?'selected':''}>DAP / Delivered At Place</option>
+            <option value="DDP" ${(p.shippingTerm||'')==='DDP'?'selected':''}>DDP / Delivered Duty Paid</option>
+            <option value="FCA" ${(p.shippingTerm||'')==='FCA'?'selected':''}>FCA</option>
+            <option value="CPT" ${(p.shippingTerm||'')==='CPT'?'selected':''}>CPT</option>
+            <option value="CIP" ${(p.shippingTerm||'')==='CIP'?'selected':''}>CIP</option>
+          </select>
+        </div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button class="btn btn-danger btn-sm" onclick="deleteAddressProfile('${p.id}')">Delete</button>
@@ -2202,6 +2226,8 @@ function saveAddressProfileEdit(id) {
     notifySelectId:   document.getElementById('apn2_' + id)?.value || '',
     pickupSelectId:   document.getElementById('appu_' + id)?.value || '',
     deliverySelectId: document.getElementById('apd_'  + id)?.value || '',
+    companyName:      document.getElementById('apcn_' + id)?.value.trim() || '',
+    shippingTerm:     document.getElementById('apst_' + id)?.value || '',
   };
   saveStore('addressProfiles', profiles);
   populateProfileDropdown();
@@ -2318,6 +2344,25 @@ function updateLineItem(id, field, value) {
   renderLineItems();
 }
 
+/* Returns sum of pallet netWeights for a given productId (live pallets array),
+   or null if no pallets exist for that product (falls back to per-unit calculation). */
+function _palletNetWeightFor(productId) {
+  if (!productId || !pallets.length) return null;
+  const matched = pallets.filter(p => p.productId === productId);
+  if (!matched.length) return null;
+  const sum = matched.reduce((s, p) => s + (parseFloat(p.netWeight) || 0), 0);
+  return sum > 0 ? sum : null;
+}
+
+/* Same logic but reads from a data snapshot (used inside generateCI / buildDocBodyHTML). */
+function _docPalletNetWeightFor(palletArr, productId) {
+  if (!productId || !palletArr || !palletArr.length) return null;
+  const matched = palletArr.filter(p => p.productId === productId);
+  if (!matched.length) return null;
+  const sum = matched.reduce((s, p) => s + (parseFloat(p.netWeight) || 0), 0);
+  return sum > 0 ? sum : null;
+}
+
 function renderLineItems() {
   const tbody = document.getElementById('lineItemsBody');
   const empty = document.getElementById('lineItemsEmpty');
@@ -2327,7 +2372,8 @@ function renderLineItems() {
   tbody.innerHTML = lineItems.map(li => {
     const totalCustoms = (li.qty * li.unitValue);
     const calcNetWeight = (li.qty * li.unitWeight);
-    const netWeight = li.netWeight != null ? li.netWeight : calcNetWeight;
+    const palletNW = _palletNetWeightFor(li.productId);
+    const netWeight = palletNW !== null ? palletNW : (li.netWeight != null ? li.netWeight : calcNetWeight);
     return `
     <tr>
       <td>
@@ -2361,7 +2407,8 @@ function updateLineTotals() {
   let totalPcs = 0, totalWt = 0, totalVal = 0;
   lineItems.forEach(li => {
     totalPcs += li.qty;
-    totalWt += li.netWeight != null ? li.netWeight : li.qty * li.unitWeight;
+    const palletNW = _palletNetWeightFor(li.productId);
+    totalWt += palletNW !== null ? palletNW : (li.netWeight != null ? li.netWeight : li.qty * li.unitWeight);
     totalVal += li.qty * li.unitValue;
   });
   document.getElementById('totalPcs').textContent = totalPcs + ' pcs';
@@ -2851,11 +2898,7 @@ function generateCI(data) {
   const isSea = d.mode === 'SEA';
   const currency = d.currency;
   let totalPcs = 0, totalWt = 0, totalVal = 0;
-  d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.netWeight != null ? li.netWeight : li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
-  // Sync CI weight with PL: use pallet gross weights when available
-  if (d.pallets && d.pallets.length > 0) {
-    totalWt = d.pallets.reduce((sum, p) => sum + (p.grossWeight || 0), 0);
-  }
+  d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += _docPalletNetWeightFor(d.pallets, li.productId) ?? (li.netWeight != null ? li.netWeight : li.qty * li.unitWeight); totalVal += li.qty * li.unitValue; });
 
   // Header boxes
   const hasNotify = d.notify && formatAddress(d.notify).trim();
@@ -2903,7 +2946,7 @@ function generateCI(data) {
 
   // Table
   const rows = d.lineItems.map(li => {
-    const netWt = li.netWeight != null ? li.netWeight : (li.qty * li.unitWeight);
+    const netWt = _docPalletNetWeightFor(d.pallets, li.productId) ?? (li.netWeight != null ? li.netWeight : (li.qty * li.unitWeight));
     const total = (li.qty * li.unitValue);
     return `
       <tr>
@@ -3267,14 +3310,13 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
   let itemsTable = '';
   if (isCI) {
     let totalPcs = 0, totalWt = 0, totalVal = 0;
-    d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += li.netWeight != null ? li.netWeight : li.qty * li.unitWeight; totalVal += li.qty * li.unitValue; });
-    if (d.pallets && d.pallets.length > 0) totalWt = d.pallets.reduce((s, p) => s + (p.grossWeight || 0), 0);
+    d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += _docPalletNetWeightFor(d.pallets, li.productId) ?? (li.netWeight != null ? li.netWeight : li.qty * li.unitWeight); totalVal += li.qty * li.unitValue; });
     const itemRows = d.lineItems.map(li =>
       `<tr>
         ${TD(`<strong>${esc(li.sku)} - ${esc(li.name)}</strong><br><span style="color:#555;font-size:7.5pt;">HS Code: ${esc(li.hsCode)}${li.origin ? ' | Origin: ' + esc(li.origin) : ''}</span>`)}
         ${TDR(li.qty.toLocaleString())}
         ${TD('pcs')}
-        ${TDR((li.netWeight != null ? li.netWeight : li.qty * li.unitWeight).toFixed(2))}
+        ${TDR((_docPalletNetWeightFor(d.pallets, li.productId) ?? (li.netWeight != null ? li.netWeight : li.qty * li.unitWeight)).toFixed(2))}
         ${TDR(li.unitValue.toFixed(2))}
         ${TDR((li.qty * li.unitValue).toFixed(2))}
       </tr>`).join('');
