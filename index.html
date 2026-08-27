@@ -2407,10 +2407,11 @@ function updateLineTotals() {
   let totalPcs = 0, totalWt = 0, totalVal = 0;
   lineItems.forEach(li => {
     totalPcs += li.qty;
-    const palletNW = _palletNetWeightFor(li.productId);
-    totalWt += palletNW !== null ? palletNW : (li.netWeight != null ? li.netWeight : li.qty * li.unitWeight);
+    totalWt += _palletNetWeightFor(li.productId) ?? (li.netWeight != null ? li.netWeight : li.qty * li.unitWeight);
     totalVal += li.qty * li.unitValue;
   });
+  // CI total weight = PL total (sum of all pallet net weights) when pallets exist
+  if (pallets.length) totalWt = pallets.reduce((s, p) => s + (parseFloat(p.grossWeight) || 0), 0);
   document.getElementById('totalPcs').textContent = totalPcs + ' pcs';
   document.getElementById('totalWeight').textContent = totalWt.toFixed(2) + ' kg';
   document.getElementById('totalValue').textContent = totalVal.toFixed(2) + ' ' + currency;
@@ -2899,6 +2900,7 @@ function generateCI(data) {
   const currency = d.currency;
   let totalPcs = 0, totalWt = 0, totalVal = 0;
   d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += _docPalletNetWeightFor(d.pallets, li.productId) ?? (li.netWeight != null ? li.netWeight : li.qty * li.unitWeight); totalVal += li.qty * li.unitValue; });
+  if (d.pallets && d.pallets.length) totalWt = d.pallets.reduce((s, p) => s + (parseFloat(p.grossWeight) || 0), 0);
 
   // Header boxes
   const hasNotify = d.notify && formatAddress(d.notify).trim();
@@ -3311,6 +3313,7 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
   if (isCI) {
     let totalPcs = 0, totalWt = 0, totalVal = 0;
     d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += _docPalletNetWeightFor(d.pallets, li.productId) ?? (li.netWeight != null ? li.netWeight : li.qty * li.unitWeight); totalVal += li.qty * li.unitValue; });
+    if (d.pallets && d.pallets.length) totalWt = d.pallets.reduce((s, p) => s + (parseFloat(p.grossWeight) || 0), 0);
     const itemRows = d.lineItems.map(li =>
       `<tr>
         ${TD(`<strong>${esc(li.sku)} - ${esc(li.name)}</strong><br><span style="color:#555;font-size:7.5pt;">HS Code: ${esc(li.hsCode)}${li.origin ? ' | Origin: ' + esc(li.origin) : ''}</span>`)}
