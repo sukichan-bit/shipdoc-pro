@@ -1710,7 +1710,7 @@ function getWeightMismatch() {
 
   // PL net weight: sum of pallet netWeight
   let plNetWeight = 0;
-  pallets.forEach(p => { plNetWeight += parseFloat(p.netWeight) || 0; });
+  pallets.forEach(p => { plNetWeight += _palletTotalNetWeight(p); });
 
   // PL gross weight: sum of pallet grossWeight
   let plGrossWeight = 0;
@@ -2344,23 +2344,43 @@ function updateLineItem(id, field, value) {
   renderLineItems();
 }
 
-/* Returns sum of pallet netWeights for a given productId (live pallets array),
-   or null if no pallets exist for that product (falls back to per-unit calculation). */
+/* Sum of all items' netWeight on a pallet (handles old single-product pallets too). */
+function _palletTotalNetWeight(p) {
+  if (p.items && p.items.length) return p.items.reduce((s, it) => s + (parseFloat(it.netWeight)||0), 0);
+  return parseFloat(p.netWeight) || 0;
+}
+function _palletTotalCartonQty(p) {
+  if (p.items && p.items.length) return p.items.reduce((s, it) => s + (parseFloat(it.cartonQty)||0), 0);
+  return parseFloat(p.cartonQty) || 0;
+}
+
+/* Returns sum of item netWeights for a given productId across all live pallets,
+   or null if no pallet items exist for that product (falls back to per-unit calculation). */
 function _palletNetWeightFor(productId) {
   if (!productId || !pallets.length) return null;
-  const matched = pallets.filter(p => p.productId === productId);
-  if (!matched.length) return null;
-  const sum = matched.reduce((s, p) => s + (parseFloat(p.netWeight) || 0), 0);
-  return sum > 0 ? sum : null;
+  let sum = 0, found = false;
+  pallets.forEach(p => {
+    if (p.items) {
+      p.items.filter(it => it.productId === productId).forEach(it => { sum += parseFloat(it.netWeight)||0; found = true; });
+    } else if (p.productId === productId) {
+      sum += parseFloat(p.netWeight)||0; found = true;
+    }
+  });
+  return found ? (sum > 0 ? sum : null) : null;
 }
 
 /* Same logic but reads from a data snapshot (used inside generateCI / buildDocBodyHTML). */
 function _docPalletNetWeightFor(palletArr, productId) {
   if (!productId || !palletArr || !palletArr.length) return null;
-  const matched = palletArr.filter(p => p.productId === productId);
-  if (!matched.length) return null;
-  const sum = matched.reduce((s, p) => s + (parseFloat(p.netWeight) || 0), 0);
-  return sum > 0 ? sum : null;
+  let sum = 0, found = false;
+  palletArr.forEach(p => {
+    if (p.items) {
+      p.items.filter(it => it.productId === productId).forEach(it => { sum += parseFloat(it.netWeight)||0; found = true; });
+    } else if (p.productId === productId) {
+      sum += parseFloat(p.netWeight)||0; found = true;
+    }
+  });
+  return found ? (sum > 0 ? sum : null) : null;
 }
 
 function renderLineItems() {
@@ -2385,7 +2405,9 @@ function renderLineItems() {
         </div>
       </td>
       <td><input type="number" min="0" value="${li.qty}" style="width:80px; padding:4px 8px; border:1px solid var(--gray-300); border-radius:4px;" onchange="updateLineItem('${li.id}','qty',this.value)"></td>
-      <td>pcs</td>
+      <td><select style="padding:3px 5px;border:1px solid var(--gray-300);border-radius:4px;font-size:.8rem;" onchange="updateLineItem('${li.id}','unit',this.value)">
+        ${['pcs','cases','cartons','sets','boxes','units','kg'].map(u=>`<option value="${u}" ${(li.unit||'pcs')===u?'selected':''}>${u}</option>`).join('')}
+      </select></td>
       <td><input type="number" step="0.01" min="0" value="${netWeight.toFixed(2)}" style="width:90px; padding:4px 8px; border:1px solid var(--gray-300); border-radius:4px;" onchange="updateLineItem('${li.id}','netWeight',this.value)"> kg</td>
       <td><input type="number" step="0.01" min="0" value="${li.unitValue}" style="width:90px; padding:4px 8px; border:1px solid var(--gray-300); border-radius:4px;" onchange="updateLineItem('${li.id}','unitValue',this.value)"> ${currency}</td>
       <td>${totalCustoms.toFixed(2)} ${currency}</td>
@@ -2445,9 +2467,9 @@ function _updateSaveButtons() {
 
 function addPallet() {
   pallets.push({
-    id: uid(), productId: '', sku: '', productName: '', hsCode: '', origin: '',
-    cartonQty: 0, netWeight: 0, grossWeight: 0,
-    dimL: 0, dimW: 0, dimH: 0, remarks: ''
+    id: uid(),
+    items: [{ id: uid(), productId:'', sku:'', productName:'', hsCode:'', hsCodeGeneral:'', hsCodeUS:'', hsCodeUK:'', origin:'', cartonQty:0, netWeight:0 }],
+    grossWeight: 0, dimL: 0, dimW: 0, dimH: 0, remarks: ''
   });
   renderPallets();
 }
@@ -2555,15 +2577,112 @@ function assignPalletProduct(palletId, productId) {
 
 function savePalletDefaults(palletId) {
   const pallet = pallets.find(p => p.id === palletId);
-  if (!pallet || !pallet.sku) { toast('Select a product first', 'error'); return; }
+  if (!pallet) return;
+  const firstItem = pallet.items?.[0];
+  if (!firstItem?.sku) { toast('Select a product first', 'error'); return; }
   const defaults = loadObj('palletDefaults');
-  defaults[pallet.sku] = {
-    netWeight: pallet.netWeight, grossWeight: pallet.grossWeight,
+  defaults[firstItem.sku] = {
+    netWeight: firstItem.netWeight, grossWeight: pallet.grossWeight,
     dimL: pallet.dimL, dimW: pallet.dimW, dimH: pallet.dimH,
-    remarks: pallet.remarks, cartonQty: pallet.cartonQty
+    remarks: pallet.remarks, cartonQty: firstItem.cartonQty
   };
   saveObj('palletDefaults', defaults);
-  toast(`Defaults saved for ${pallet.sku}`);
+  toast(`Defaults saved for ${firstItem.sku}`);
+}
+
+/* ── Mixed pallet item functions ────────────────────────── */
+function addPalletItem(palletId) {
+  const p = pallets.find(pl => pl.id === palletId);
+  if (!p) return;
+  p.items.push({ id: uid(), productId:'', sku:'', productName:'', hsCode:'', hsCodeGeneral:'', hsCodeUS:'', hsCodeUK:'', origin:'', cartonQty:0, netWeight:0 });
+  renderPallets();
+}
+
+function removePalletItem(palletId, itemId) {
+  const p = pallets.find(pl => pl.id === palletId);
+  if (!p || p.items.length <= 1) return;
+  p.items = p.items.filter(it => it.id !== itemId);
+  renderPallets();
+  updatePalletTotals();
+}
+
+function updatePalletItem(palletId, itemId, field, value) {
+  const p = pallets.find(pl => pl.id === palletId);
+  if (!p) return;
+  const it = p.items.find(i => i.id === itemId);
+  if (!it) return;
+  it[field] = ['cartonQty','netWeight'].includes(field) ? (parseFloat(value)||0) : value;
+  updatePalletTotals();
+}
+
+function selectPalletItem(palletId, itemId) {
+  const products = loadStore('products');
+  const html = `
+    <div class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header"><h3>Select Product</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+        <div class="modal-body">
+          <div class="search-box" style="margin-bottom:12px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="palletProdSearch" placeholder="Search products..." oninput="filterPalletItems('${palletId}','${itemId}')">
+          </div>
+          <div id="palletProdList" style="max-height:300px;overflow-y:auto;">
+            ${products.map(prod => `
+              <div class="option" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--gray-100);"
+                onclick="assignPalletItem('${palletId}','${itemId}','${prod.id}')">
+                <strong>${esc(prod.sku)}</strong> - ${esc(prod.name)} <span style="color:var(--gray-400);">(HS: ${esc(prod.hsCode)})</span>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalContainer').innerHTML = html;
+}
+
+function filterPalletItems(palletId, itemId) {
+  const q = document.getElementById('palletProdSearch').value.toLowerCase();
+  const products = loadStore('products').filter(p => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
+  document.getElementById('palletProdList').innerHTML = products.map(prod => `
+    <div class="option" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--gray-100);"
+      onclick="assignPalletItem('${palletId}','${itemId}','${prod.id}')">
+      <strong>${esc(prod.sku)}</strong> - ${esc(prod.name)} <span style="color:var(--gray-400);">(HS: ${esc(prod.hsCode)})</span>
+    </div>`).join('');
+}
+
+function assignPalletItem(palletId, itemId, productId) {
+  const prod = loadStore('products').find(p => p.id === productId);
+  const pallet = pallets.find(p => p.id === palletId);
+  if (!prod || !pallet) return;
+  const it = pallet.items.find(i => i.id === itemId);
+  if (!it) return;
+  it.productId = prod.id; it.sku = prod.sku; it.productName = prod.name;
+  it.hsCode = prod.hsCode; it.hsCodeGeneral = prod.hsCode;
+  it.hsCodeUS = prod.hsCodeUS||''; it.hsCodeUK = prod.hsCodeUK||''; it.origin = prod.origin||'';
+  // Auto-fill weights/dims only for single-item pallets
+  if (pallet.items.length === 1) {
+    if (prod.palletL) pallet.dimL = prod.palletL;
+    if (prod.palletW) pallet.dimW = prod.palletW;
+    if (prod.palletH) pallet.dimH = prod.palletH;
+    if (prod.palletNetWeight)   it.netWeight    = prod.palletNetWeight;
+    if (prod.palletGrossWeight) pallet.grossWeight = prod.palletGrossWeight;
+    if (prod.cartonsPerPallet)  it.cartonQty    = prod.cartonsPerPallet;
+    if (prod.palletL||prod.palletW||prod.palletH) toast(`Pallet dims loaded from product catalog for ${prod.sku}`);
+    else {
+      const defaults = loadObj('palletDefaults');
+      const def = defaults[prod.sku];
+      if (def) {
+        it.netWeight   = def.netWeight   || it.netWeight;
+        it.cartonQty   = def.cartonQty   || it.cartonQty;
+        pallet.grossWeight = def.grossWeight || pallet.grossWeight;
+        pallet.dimL    = def.dimL        || pallet.dimL;
+        pallet.dimW    = def.dimW        || pallet.dimW;
+        pallet.dimH    = def.dimH        || pallet.dimH;
+        pallet.remarks = def.remarks     || pallet.remarks;
+      }
+    }
+  }
+  closeModal();
+  renderPallets();
 }
 
 /* ── Pallet Presets ─────────────────────────────────────── */
@@ -2657,10 +2776,20 @@ function renderPallets() {
   const presetOptions = `<option value="">— Select preset —</option>` +
     presets.map(pr => `<option value="${pr.id}">${esc(pr.name)} (${pr.dimL}×${pr.dimW}×${pr.dimH})</option>`).join('');
 
+  // Migrate old single-product pallets to new items[] structure
+  pallets.forEach(p => {
+    if (!p.items) {
+      p.items = [{ id: uid(), productId: p.productId||'', sku: p.sku||'', productName: p.productName||'',
+        hsCode: p.hsCode||'', hsCodeGeneral: p.hsCodeGeneral||p.hsCode||'',
+        hsCodeUS: p.hsCodeUS||'', hsCodeUK: p.hsCodeUK||'', origin: p.origin||'',
+        cartonQty: p.cartonQty||0, netWeight: p.netWeight||0 }];
+    }
+  });
+
   container.innerHTML = pallets.map((p, i) => `
     <div class="pallet-card">
       <div class="pallet-card-header">
-        <span>Pallet ${i+1}${p.sku ? ' — ' + esc(p.sku) : ''}</span>
+        <span>Pallet ${i+1}${p.items[0]?.sku ? ' — ' + esc(p.items.map(it=>it.sku).join(' + ')) : ''}</span>
         <div class="btn-group">
           <button class="btn btn-outline btn-sm" onclick="savePalletDefaults('${p.id}')" title="Save dims as SKU default">SKU Default</button>
           <button class="btn btn-secondary btn-sm" onclick="duplicatePallet('${p.id}')">Duplicate</button>
@@ -2681,29 +2810,41 @@ function renderPallets() {
             </div>
           </div>
 
-          <!-- Product -->
+          <!-- Items on this pallet -->
           <div class="form-group" style="grid-column:1/-1;">
-            <label>Product</label>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <input type="text" readonly value="${p.sku ? esc(p.sku) + ' — ' + esc(p.productName) : 'No product selected'}" style="flex:1; cursor:pointer; background:var(--gray-50);" onclick="selectPalletProduct('${p.id}')">
-              <button class="btn btn-outline btn-sm" onclick="selectPalletProduct('${p.id}')">Choose</button>
-            </div>
-            <div style="display:flex;align-items:center;gap:5px;margin-top:6px;flex-wrap:wrap;">
-              <span style="font-size:.75rem;color:var(--gray-500);font-weight:600;">HS:</span>
-              ${buildHsSelect(p.hsCode, p.hsCodeGeneral||p.hsCode, p.hsCodeUS, p.hsCodeUK, `updatePallet('${p.id}','hsCode',this.value)`)}
-              <input type="text" value="${esc(p.hsCode||'')}" placeholder="Enter HS Code" style="width:130px;padding:3px 7px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;" onchange="updatePallet('${p.id}','hsCode',this.value)">
-              ${p.origin ? `<span style="font-size:.75rem;color:var(--gray-400);">| Origin: ${esc(p.origin)}</span>` : ''}
-            </div>
+            <label>Products on this Pallet</label>
+            ${p.items.map(it => `
+              <div style="border:1px solid var(--gray-200);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+                  <input type="text" readonly value="${it.sku ? esc(it.sku) + ' — ' + esc(it.productName) : 'No product selected'}"
+                    style="flex:1;min-width:150px;cursor:pointer;background:var(--gray-50);" onclick="selectPalletItem('${p.id}','${it.id}')">
+                  <button class="btn btn-outline btn-sm" onclick="selectPalletItem('${p.id}','${it.id}')">Choose</button>
+                  ${p.items.length > 1 ? `<button class="btn btn-danger btn-sm" onclick="removePalletItem('${p.id}','${it.id}')">&times;</button>` : ''}
+                </div>
+                <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:6px;">
+                  <span style="font-size:.75rem;color:var(--gray-500);font-weight:600;">HS:</span>
+                  ${buildHsSelect(it.hsCode, it.hsCodeGeneral||it.hsCode, it.hsCodeUS, it.hsCodeUK, `updatePalletItem('${p.id}','${it.id}','hsCode',this.value)`)}
+                  <input type="text" value="${esc(it.hsCode||'')}" placeholder="HS Code"
+                    style="width:130px;padding:3px 7px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;"
+                    onchange="updatePalletItem('${p.id}','${it.id}','hsCode',this.value)">
+                  ${it.origin ? `<span style="font-size:.75rem;color:var(--gray-400);">| Origin: ${esc(it.origin)}</span>` : ''}
+                </div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                  <div class="form-group" style="margin:0;">
+                    <label style="font-size:.72rem;">Carton Qty</label>
+                    <input type="number" min="0" value="${it.cartonQty}" style="width:100px;"
+                      onchange="updatePalletItem('${p.id}','${it.id}','cartonQty',this.value)">
+                  </div>
+                  <div class="form-group" style="margin:0;">
+                    <label style="font-size:.72rem;">Net Weight (kg)</label>
+                    <input type="number" step="0.01" min="0" value="${it.netWeight}" style="width:110px;"
+                      onchange="updatePalletItem('${p.id}','${it.id}','netWeight',this.value)">
+                  </div>
+                </div>
+              </div>`).join('')}
+            <button class="btn btn-outline btn-sm" onclick="addPalletItem('${p.id}')">+ Add Product to Pallet</button>
           </div>
 
-          <div class="form-group">
-            <label>Carton Qty</label>
-            <input type="number" min="0" value="${p.cartonQty}" onchange="updatePallet('${p.id}','cartonQty',this.value)">
-          </div>
-          <div class="form-group">
-            <label>Net Weight (kg)</label>
-            <input type="number" step="0.01" min="0" value="${p.netWeight}" onchange="updatePallet('${p.id}','netWeight',this.value)">
-          </div>
           <div class="form-group">
             <label>Gross Weight (kg)</label>
             <input type="number" step="0.01" min="0" value="${p.grossWeight}" onchange="updatePallet('${p.id}','grossWeight',this.value)">
@@ -2959,7 +3100,7 @@ function generateCI(data) {
           </div>
         </td>
         <td class="text-right">${li.qty.toLocaleString()}</td>
-        <td>pcs</td>
+        <td>${esc(li.unit||'pcs')}</td>
         <td class="text-right">${netWt.toFixed(2)}</td>
         <td class="text-right">${li.unitValue.toFixed(2)}</td>
         <td class="text-right">${total.toFixed(2)}</td>
@@ -3077,21 +3218,22 @@ function generatePL(data) {
   let totalGross = 0, totalNet = 0, totalCBM = 0;
   const rows = d.pallets.map((p, i) => {
     const cbm = (p.dimL * p.dimW * p.dimH) / 1000000;
-    totalGross += p.grossWeight;
-    totalNet += p.netWeight;
+    const items = p.items || [{ sku: p.sku, productName: p.productName, hsCode: p.hsCode, origin: p.origin, cartonQty: p.cartonQty, netWeight: p.netWeight }];
+    const palletNet = items.reduce((s, it) => s + (parseFloat(it.netWeight)||0), 0);
+    const palletCtns = items.reduce((s, it) => s + (parseFloat(it.cartonQty)||0), 0);
+    totalGross += parseFloat(p.grossWeight)||0;
+    totalNet += palletNet;
     totalCBM += cbm;
+    const descHTML = items.map(it => `
+      <div class="sku">${esc(it.sku)} - ${esc(it.productName)}</div>
+      <div class="detail">HS Code: ${esc(it.hsCode)} | Origin: ${esc(it.origin)}</div>`).join('');
     return `
       <tr>
         <td><strong>Pallet ${i+1}</strong></td>
-        <td>
-          <div class="doc-goods-desc">
-            <div class="sku">${esc(p.sku)} - ${esc(p.productName)}</div>
-            <div class="detail">HS Code: ${esc(p.hsCode)} | Origin: ${esc(p.origin)}</div>
-          </div>
-        </td>
-        <td class="text-right">${p.cartonQty}</td>
-        <td class="text-right">${p.netWeight.toFixed(2)}</td>
-        <td class="text-right">${p.grossWeight.toFixed(2)}</td>
+        <td><div class="doc-goods-desc">${descHTML}</div></td>
+        <td class="text-right">${palletCtns}</td>
+        <td class="text-right">${palletNet.toFixed(2)}</td>
+        <td class="text-right">${(parseFloat(p.grossWeight)||0).toFixed(2)}</td>
         <td>${p.dimL} x ${p.dimW} x ${p.dimH} cm</td>
         <td><div class="doc-pallet-remarks">${esc(p.remarks)}</div></td>
       </tr>`;
@@ -3318,7 +3460,7 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
       `<tr>
         ${TD(`<strong>${esc(li.sku)} - ${esc(li.name)}</strong><br><span style="color:#555;font-size:7.5pt;">HS Code: ${esc(li.hsCode)}${li.origin ? ' | Origin: ' + esc(li.origin) : ''}</span>`)}
         ${TDR(li.qty.toLocaleString())}
-        ${TD('pcs')}
+        ${TD(esc(li.unit||'pcs'))}
         ${TDR((_docPalletNetWeightFor(d.pallets, li.productId) ?? (li.netWeight != null ? li.netWeight : li.qty * li.unitWeight)).toFixed(2))}
         ${TDR(li.unitValue.toFixed(2))}
         ${TDR((li.qty * li.unitValue).toFixed(2))}
@@ -3336,16 +3478,21 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
       totalGross += parseFloat(p.grossWeight) || 0;
       totalCBM   += ((parseFloat(p.dimL)||0)*(parseFloat(p.dimW)||0)*(parseFloat(p.dimH)||0))/1000000;
     });
-    const palletRows = d.pallets.map((p, i) =>
-      `<tr>
+    const palletRows = d.pallets.map((p, i) => {
+      const pitems = p.items || [{ sku: p.sku, productName: p.productName, hsCode: p.hsCode, origin: p.origin, cartonQty: p.cartonQty, netWeight: p.netWeight }];
+      const pNet = pitems.reduce((s, it) => s + (parseFloat(it.netWeight)||0), 0);
+      const pCtns = pitems.reduce((s, it) => s + (parseFloat(it.cartonQty)||0), 0);
+      const desc = pitems.map(it => `<strong>${esc(it.sku)} - ${esc(it.productName)}</strong><br><span style="color:#555;font-size:7.5pt;">HS: ${esc(it.hsCode)} | Origin: ${esc(it.origin)}</span>`).join('<br>');
+      return `<tr>
         ${TD(`<strong>Pallet ${i+1}</strong>`)}
-        ${TD(`<strong>${esc(p.sku)} - ${esc(p.productName)}</strong><br><span style="color:#555;font-size:7.5pt;">HS: ${esc(p.hsCode)} | Origin: ${esc(p.origin)}</span>`)}
-        ${TDR(p.cartonQty)}
-        ${TDR(parseFloat(p.netWeight).toFixed(2))}
+        ${TD(desc)}
+        ${TDR(pCtns)}
+        ${TDR(pNet.toFixed(2))}
         ${TDR(parseFloat(p.grossWeight).toFixed(2))}
         ${TD(`${p.dimL} x ${p.dimW} x ${p.dimH} cm`)}
         ${TD(esc(p.remarks))}
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     itemsTable = `
       <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">
         <thead><tr>${TH('Pallet Ref#')}${TH('Product Details')}${THR('Carton Qty')}${THR('Net Weight (kgs)')}${THR('Gross Weight (kgs)')}${TH('Pallet Dimensions (cm)')}${TH('Remarks')}</tr></thead>
