@@ -1136,6 +1136,15 @@ table { border-collapse: collapse; width: 100%; }
               </select>
               <button class="btn btn-outline btn-sm" onclick="navigateTo('settings')">Manage</button>
             </div>
+            <!-- Stamp selector -->
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+              <span style="font-size:.85rem; font-weight:600; color:var(--gray-600); text-transform:uppercase; letter-spacing:.04em;">Stamp</span>
+              <select id="stampSelect" style="padding:7px 12px; border:1.5px solid var(--gray-200); border-radius:8px; font-size:.88rem; background:var(--gray-50); min-width:200px;">
+                <option value="__default">Default (Settings)</option>
+                <option value="__none">No Stamp</option>
+              </select>
+              <button class="btn btn-outline btn-sm" onclick="navigateTo('settings')">Manage</button>
+            </div>
             <!-- Format selector -->
             <div style="display:flex; align-items:center; gap:16px; margin-bottom:14px; flex-wrap:wrap;">
               <span style="font-size:.85rem; font-weight:600; color:var(--gray-600); text-transform:uppercase; letter-spacing:.04em;">Export Format</span>
@@ -1360,6 +1369,19 @@ table { border-collapse: collapse; width: 100%; }
           </div>
         </div>
 
+        <!-- Company Stamps Library -->
+        <div class="card">
+          <div class="card-header">
+            <h2>Company Stamps Library</h2>
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('namedStampInput').click()">+ Add Stamp</button>
+          </div>
+          <div class="card-body">
+            <p style="margin-bottom:14px; color:var(--gray-500); font-size:.9rem;">Save multiple stamps and choose which one to use per export from the Preview tab.</p>
+            <div id="stampsLibraryList"></div>
+            <input type="file" id="namedStampInput" accept="image/*" style="display:none" onchange="handleNamedStampUpload(event)">
+          </div>
+        </div>
+
         <!-- Team Sync -->
         <div class="card">
           <div class="card-header">
@@ -1502,6 +1524,7 @@ const STORE_KEYS = {
   palletPresets: 'sdg_palletPresets',
   signature: 'sdg_signature',
   stamp: 'sdg_stamp',
+  stamps: 'sdg_stamps',
   letterheads: 'sdg_letterheads',
   addressProfiles: 'sdg_addressProfiles',
   cartons: 'sdg_cartonMarks',
@@ -1635,7 +1658,7 @@ function switchShipmentTab(btn) {
   btn.classList.add('active');
   document.querySelectorAll('.shipment-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(btn.dataset.tab).classList.add('active');
-  if (btn.dataset.tab === 'tab-preview') { runValidations(); renderLetterheadSelector(); }
+  if (btn.dataset.tab === 'tab-preview') { runValidations(); renderLetterheadSelector(); renderStampSelector(); }
 }
 
 /* ============================================================
@@ -1898,6 +1921,11 @@ function openProductModal(editId) {
             <div class="form-group"><label>Country of Origin</label><input type="text" id="prod_origin" value="${esc(prod?.origin||'')}"></div>
             <div class="form-group"><label>Unit Weight (kg)</label><input type="number" step="0.001" id="prod_weight" value="${prod?.unitWeight||''}"></div>
             <div class="form-group"><label>Unit Value (USD)</label><input type="number" step="0.01" id="prod_value" value="${prod?.unitValue||''}"></div>
+            <div class="form-group"><label>Default Unit</label>
+              <select id="prod_unit">
+                ${['pcs','cases','cartons','sets','boxes','units','kg'].map(u=>`<option value="${u}" ${(prod?.defaultUnit||'pcs')===u?'selected':''}>${u}</option>`).join('')}
+              </select>
+            </div>
             <div class="form-group"><label>Pcs per Carton</label><input type="number" id="prod_pcsCarton" value="${prod?.pcsPerCarton||''}"></div>
           </div>
           <div style="margin:18px 0 10px; padding-top:16px; border-top:1.5px dashed var(--gray-200);">
@@ -1930,6 +1958,7 @@ function saveProduct(editId) {
     hsCode: val('prod_hs'), hsCodeUS: val('prod_hs_us'), hsCodeUK: val('prod_hs_uk'), origin: val('prod_origin'),
     unitWeight: parseFloat(val('prod_weight')) || 0,
     unitValue: parseFloat(val('prod_value')) || 0,
+    defaultUnit: val('prod_unit') || 'pcs',
     pcsPerCarton: parseInt(val('prod_pcsCarton')) || 0,
     // Pallet dimensions
     palletL: parseFloat(val('prod_palletL')) || 0,
@@ -2306,7 +2335,7 @@ function addLineItem(productId) {
   lineItems.push({
     id: uid(), productId: p.id, sku: p.sku, name: p.name,
     hsCode: p.hsCode, hsCodeGeneral: p.hsCode, hsCodeUS: p.hsCodeUS || '', hsCodeUK: p.hsCodeUK || '', origin: p.origin,
-    qty: 0, unit: 'pcs', unitWeight: p.unitWeight, unitValue: p.unitValue
+    qty: 0, unit: p.defaultUnit || 'pcs', unitWeight: p.unitWeight, unitValue: p.unitValue
   });
   document.getElementById('lineItemSearch').value = '';
   document.getElementById('lineItemDropdown').classList.remove('open');
@@ -2946,6 +2975,65 @@ function getLetterheadHTML() {
   return `<div class="doc-letterhead"><img src="${lh.data}" alt="Letterhead"></div>`;
 }
 
+/* ── Named stamps library ──────────────────────────────────── */
+function getNamedStamps() { return loadStore('stamps') || []; }
+function saveNamedStamps(list) { saveStore('stamps', list); }
+
+function renderStampsLibrary() {
+  const list = getNamedStamps();
+  const el = document.getElementById('stampsLibraryList');
+  if (!el) return;
+  el.innerHTML = list.length ? list.map(s => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100);">
+      <img src="${s.dataUrl}" style="width:48px;height:48px;object-fit:contain;border:1px solid var(--gray-200);border-radius:6px;">
+      <span style="flex:1;font-weight:600;">${esc(s.name)}</span>
+      <button class="btn btn-danger btn-sm" onclick="deleteNamedStamp('${s.id}')">Delete</button>
+    </div>`).join('')
+  : '<p style="color:var(--gray-400);font-size:.9rem;">No stamps saved yet. Click "+ Add Stamp" above.</p>';
+  renderStampSelector();
+}
+
+function handleNamedStampUpload(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const name = prompt('Name for this stamp:', file.name.replace(/\.[^.]+$/, ''));
+  if (!name || !name.trim()) { e.target.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const list = getNamedStamps();
+    list.push({ id: uid(), name: name.trim(), dataUrl: ev.target.result });
+    saveNamedStamps(list);
+    renderStampsLibrary();
+    toast(`Stamp "${name.trim()}" saved`);
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function deleteNamedStamp(id) {
+  if (!confirm('Delete this stamp?')) return;
+  saveNamedStamps(getNamedStamps().filter(s => s.id !== id));
+  renderStampsLibrary();
+  toast('Stamp deleted');
+}
+
+function renderStampSelector() {
+  const sel = document.getElementById('stampSelect'); if (!sel) return;
+  const list = getNamedStamps();
+  const cur = sel.value;
+  sel.innerHTML = `<option value="__default">Default (Settings)</option>
+    ${list.map(s => `<option value="${s.id}" ${s.id===cur?'selected':''}>${esc(s.name)}</option>`).join('')}
+    <option value="__none" ${cur==='__none'?'selected':''}>No Stamp</option>`;
+}
+
+function getExportStampImg() {
+  const sel = document.getElementById('stampSelect');
+  const val = sel ? sel.value : '__default';
+  if (val === '__none') return null;
+  if (val === '__default') return localStorage.getItem(STORE_KEYS.stamp) || null;
+  const s = getNamedStamps().find(s => s.id === val);
+  return s ? s.dataUrl : localStorage.getItem(STORE_KEYS.stamp) || null;
+}
+
 function renderLetterheadSelector() {
   const list = getLetterheads();
   const sel = document.getElementById('letterheadSelect');
@@ -3140,7 +3228,7 @@ function generateCI(data) {
     </div>`;
 
   const sigImg   = localStorage.getItem(STORE_KEYS.signature);
-  const stampImg = localStorage.getItem(STORE_KEYS.stamp);
+  const stampImg = getExportStampImg();
   const sigBlock = buildSigBlock(sigImg, stampImg);
 
   const footer = `
@@ -3218,25 +3306,27 @@ function generatePL(data) {
   let totalGross = 0, totalNet = 0, totalCBM = 0;
   const rows = d.pallets.map((p, i) => {
     const cbm = (p.dimL * p.dimW * p.dimH) / 1000000;
-    const items = p.items || [{ sku: p.sku, productName: p.productName, hsCode: p.hsCode, origin: p.origin, cartonQty: p.cartonQty, netWeight: p.netWeight }];
-    const palletNet = items.reduce((s, it) => s + (parseFloat(it.netWeight)||0), 0);
-    const palletCtns = items.reduce((s, it) => s + (parseFloat(it.cartonQty)||0), 0);
+    const pitems = p.items || [{ sku: p.sku, productName: p.productName, hsCode: p.hsCode, origin: p.origin, cartonQty: p.cartonQty, netWeight: p.netWeight }];
+    const palletNet = pitems.reduce((s, it) => s + (parseFloat(it.netWeight)||0), 0);
     totalGross += parseFloat(p.grossWeight)||0;
     totalNet += palletNet;
     totalCBM += cbm;
-    const descHTML = items.map(it => `
-      <div class="sku">${esc(it.sku)} - ${esc(it.productName)}</div>
-      <div class="detail">HS Code: ${esc(it.hsCode)} | Origin: ${esc(it.origin)}</div>`).join('');
-    return `
+    const span = pitems.length;
+    return pitems.map((it, j) => `
       <tr>
-        <td><strong>Pallet ${i+1}</strong></td>
-        <td><div class="doc-goods-desc">${descHTML}</div></td>
-        <td class="text-right">${palletCtns}</td>
-        <td class="text-right">${palletNet.toFixed(2)}</td>
-        <td class="text-right">${(parseFloat(p.grossWeight)||0).toFixed(2)}</td>
-        <td>${p.dimL} x ${p.dimW} x ${p.dimH} cm</td>
-        <td><div class="doc-pallet-remarks">${esc(p.remarks)}</div></td>
-      </tr>`;
+        ${j===0 ? `<td rowspan="${span}" style="vertical-align:middle;"><strong>Pallet ${i+1}</strong></td>` : ''}
+        <td>
+          <div class="doc-goods-desc">
+            <div class="sku">${esc(it.sku)} - ${esc(it.productName)}</div>
+            <div class="detail">HS Code: ${esc(it.hsCode)} | Origin: ${esc(it.origin)}</div>
+          </div>
+        </td>
+        <td class="text-right">${parseFloat(it.cartonQty)||0}</td>
+        <td class="text-right">${(parseFloat(it.netWeight)||0).toFixed(2)}</td>
+        ${j===0 ? `<td class="text-right" rowspan="${span}" style="vertical-align:middle;">${(parseFloat(p.grossWeight)||0).toFixed(2)}</td>
+                   <td rowspan="${span}" style="vertical-align:middle;">${p.dimL} x ${p.dimW} x ${p.dimH} cm</td>
+                   <td rowspan="${span}" style="vertical-align:middle;"><div class="doc-pallet-remarks">${esc(p.remarks)}</div></td>` : ''}
+      </tr>`).join('');
   }).join('');
 
   const tableHTML = `
@@ -3264,7 +3354,7 @@ function generatePL(data) {
     </div>`;
 
   const sigImgPL   = localStorage.getItem(STORE_KEYS.signature);
-  const stampImgPL = localStorage.getItem(STORE_KEYS.stamp);
+  const stampImgPL = getExportStampImg();
   const sigBlockPL = buildSigBlock(sigImgPL, stampImgPL);
 
   const footer = `
@@ -3383,8 +3473,8 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
 
   const TH  = s => `<th style="background:#1a2744;color:#fff;font-weight:bold;border:1px solid #777;padding:2px 5px;font-size:8pt;text-align:left;">${s}</th>`;
   const THR = s => `<th style="background:#1a2744;color:#fff;font-weight:bold;border:1px solid #777;padding:2px 5px;font-size:8pt;text-align:right;">${s}</th>`;
-  const TD  = (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;vertical-align:top;${extra}">${s}</td>`;
-  const TDR = (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;vertical-align:top;text-align:right;${extra}">${s}</td>`;
+  const TD  = (s,extra='',rs='') => `<td${rs} style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;vertical-align:middle;${extra}">${s}</td>`;
+  const TDR = (s,extra='',rs='') => `<td${rs} style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;vertical-align:middle;text-align:right;${extra}">${s}</td>`;
   const TOT = (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;font-weight:bold;background:#f1f5f9;${extra}">${s}</td>`;
   const TOTR= (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;font-weight:bold;background:#f1f5f9;text-align:right;${extra}">${s}</td>`;
 
@@ -3474,24 +3564,24 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
   } else {
     let totalNet = 0, totalGross = 0, totalCBM = 0;
     d.pallets.forEach(p => {
-      totalNet   += parseFloat(p.netWeight)  || 0;
+      const pitems = p.items || [{ netWeight: p.netWeight }];
+      totalNet   += pitems.reduce((s, it) => s + (parseFloat(it.netWeight)||0), 0);
       totalGross += parseFloat(p.grossWeight) || 0;
       totalCBM   += ((parseFloat(p.dimL)||0)*(parseFloat(p.dimW)||0)*(parseFloat(p.dimH)||0))/1000000;
     });
     const palletRows = d.pallets.map((p, i) => {
       const pitems = p.items || [{ sku: p.sku, productName: p.productName, hsCode: p.hsCode, origin: p.origin, cartonQty: p.cartonQty, netWeight: p.netWeight }];
-      const pNet = pitems.reduce((s, it) => s + (parseFloat(it.netWeight)||0), 0);
-      const pCtns = pitems.reduce((s, it) => s + (parseFloat(it.cartonQty)||0), 0);
-      const desc = pitems.map(it => `<strong>${esc(it.sku)} - ${esc(it.productName)}</strong><br><span style="color:#555;font-size:7.5pt;">HS: ${esc(it.hsCode)} | Origin: ${esc(it.origin)}</span>`).join('<br>');
-      return `<tr>
-        ${TD(`<strong>Pallet ${i+1}</strong>`)}
-        ${TD(desc)}
-        ${TDR(pCtns)}
-        ${TDR(pNet.toFixed(2))}
-        ${TDR(parseFloat(p.grossWeight).toFixed(2))}
-        ${TD(`${p.dimL} x ${p.dimW} x ${p.dimH} cm`)}
-        ${TD(esc(p.remarks))}
-      </tr>`;
+      const span = pitems.length;
+      const rs = span > 1 ? ` rowspan="${span}"` : '';
+      return pitems.map((it, j) => `<tr>
+        ${j===0 ? `${TD(`<strong>Pallet ${i+1}</strong>`, '', rs)}` : ''}
+        ${TD(`<strong>${esc(it.sku)} - ${esc(it.productName)}</strong><br><span style="color:#555;font-size:7.5pt;">HS: ${esc(it.hsCode)} | Origin: ${esc(it.origin)}</span>`)}
+        ${TDR(parseFloat(it.cartonQty)||0)}
+        ${TDR((parseFloat(it.netWeight)||0).toFixed(2))}
+        ${j===0 ? `${TDR((parseFloat(p.grossWeight)||0).toFixed(2), '', rs)}
+        ${TD(`${p.dimL} x ${p.dimW} x ${p.dimH} cm`, '', rs)}
+        ${TD(esc(p.remarks), '', rs)}` : ''}
+      </tr>`).join('');
     }).join('');
     itemsTable = `
       <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">
@@ -3954,6 +4044,7 @@ function refreshDashboard() {
    SETTINGS
    ============================================================ */
 function loadSettings() {
+  renderStampsLibrary();
   const s = loadObj('settings');
   document.getElementById('companyName').value = s.companyName || '';
   document.getElementById('authText').value = s.authText || 'I declare that the above information is true and correct to the best of my knowledge.';
