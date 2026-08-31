@@ -345,10 +345,9 @@ table { border-collapse: collapse; width: 100%; }
   font-size: .88rem; font-weight: 700; background: transparent;
   color: var(--gray-500); transition: all var(--transition);
 }
-.mode-toggle button.active {
-  background: white; color: var(--gray-800);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
-}
+.mode-toggle button.active { box-shadow: 0 2px 8px rgba(0,0,0,0.10); }
+.mode-toggle button[data-mode="SEA"].active { background: #DBEAFE; color: #1D4ED8; }
+.mode-toggle button[data-mode="AIR"].active { background: #EDE9FE; color: #6D28D9; }
 
 /* ============================================================
    TABLES
@@ -374,6 +373,9 @@ table { border-collapse: collapse; width: 100%; }
 .tag-notify   { background: rgba(217,119,6,0.1);  color: #B45309; }
 .tag-pickup   { background: rgba(16,185,129,0.1); color: #047857; }
 .tag-delivery { background: rgba(99,102,241,0.1); color: #4338CA; }
+/* Mode tags — high contrast SEA vs AIR */
+.tag-sea { background: #DBEAFE; color: #1D4ED8; border: 1px solid #BFDBFE; }
+.tag-air { background: #EDE9FE; color: #6D28D9; border: 1px solid #DDD6FE; }
 .tag-draft     { background: rgba(100,116,139,0.1); color: #475569; }
 .tag-submitted { background: rgba(37,99,235,0.1);  color: #1D4ED8; }
 .tag-cleared   { background: rgba(217,119,6,0.1);  color: #B45309; }
@@ -865,8 +867,8 @@ table { border-collapse: collapse; width: 100%; }
        ============================================================ -->
   <aside class="sidebar no-print">
     <div class="sidebar-brand">
-      <div class="sidebar-brand-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <div class="sidebar-brand-icon" style="background:none;padding:0;overflow:hidden;">
+        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjIyIiBmaWxsPSIjMjU2M0VCIi8+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMy41Ii8+PHBhdGggZD0iTTMzIDY3IEwyOCA3NiBRNTAgODMgNzIgNzYgTDY3IDY3IFoiIGZpbGw9IndoaXRlIi8+PHJlY3QgeD0iMzYiIHk9IjQ4IiB3aWR0aD0iMjgiIGhlaWdodD0iMjAiIHJ4PSIyIiBmaWxsPSJ3aGl0ZSIvPjxyZWN0IHg9IjQxIiB5PSIzNyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjEzIiByeD0iMiIgZmlsbD0id2hpdGUiLz48cmVjdCB4PSI0NSIgeT0iMjciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMiIgcng9IjMiIGZpbGw9IndoaXRlIi8+PGNpcmNsZSBjeD0iNDQiIGN5PSI1NyIgcj0iMi44IiBmaWxsPSIjMjU2M0VCIi8+PGNpcmNsZSBjeD0iNTYiIGN5PSI1NyIgcj0iMi44IiBmaWxsPSIjMjU2M0VCIi8+PHBhdGggZD0iTTI3IDc3IFEzNiA3MyA0NSA3NyBRNTQgODEgNjMgNzcgUTY5IDc0IDczIDc3IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PHBhdGggZD0iTTI0IDMyIEwyNS41IDI4LjUgTDI3IDMyIEwzMC41IDMzLjUgTDI3IDM1IEwyNS41IDM4LjUgTDI0IDM1IEwyMC41IDMzLjUgWiIgZmlsbD0id2hpdGUiLz48cGF0aCBkPSJNNzEgMjMgTDcyIDIwLjUgTDczIDIzIEw3NS41IDI0IEw3MyAyNSBMNzIgMjcuNSBMNzEgMjUgTDY4LjUgMjQgWiIgZmlsbD0id2hpdGUiLz48Y2lyY2xlIGN4PSIzMCIgY3k9IjIxIiByPSIyIiBmaWxsPSJ3aGl0ZSIvPjxjaXJjbGUgY3g9Ijc0IiBjeT0iMzYiIHI9IjEuNSIgZmlsbD0id2hpdGUiLz48L3N2Zz4=" width="38" height="38" alt="ShipDoc Pro" style="display:block;border-radius:12px;">
       </div>
       <div class="sidebar-brand-text">
         <strong>ShipDoc Pro</strong>
@@ -1033,8 +1035,8 @@ table { border-collapse: collapse; width: 100%; }
             </div>
             <div class="card-body">
               <div class="mode-toggle" id="modeToggle">
-                <button class="active" onclick="setMode('SEA')">SEA</button>
-                <button onclick="setMode('AIR')">AIR</button>
+                <button class="active" data-mode="SEA" onclick="setMode('SEA')">✦ SEA</button>
+                <button data-mode="AIR" onclick="setMode('AIR')">✈ AIR</button>
               </div>
             </div>
           </div>
@@ -3984,7 +3986,7 @@ function renderHistory() {
         <td>${new Date(s.savedAt).toLocaleDateString()}</td>
         <td><strong>${esc(d.invoiceNumber)}</strong></td>
         <td>${esc(d.puRef)}</td>
-        <td><span class="tag ${d.mode==='SEA'?'tag-shipper':'tag-delivery'}">${d.mode}</span></td>
+        <td><span class="tag ${d.mode==='SEA'?'tag-sea':'tag-air'}">${d.mode==='SEA'?'✦ SEA':'✈ AIR'}</span></td>
         <td>
           <select class="tag ${STATUS_CLASS[status]}" onchange="updateShipmentStatus('${s.id}', this.value)"
             style="border:none; cursor:pointer; font-weight:600; font-size:.75rem; padding:2px 6px; border-radius:99px; appearance:auto;">
@@ -4169,19 +4171,22 @@ function refreshDashboard() {
     return;
   }
   const currency_symbol = { USD: '$', EUR: '\u20ac', GBP: '\u00a3', HKD: 'HK$', CAD: 'CA$', AUD: 'A$', SGD: 'S$', CNY: '\u00a5', JPY: '\u00a5', MYR: 'RM', TWD: 'NT$', KRW: '\u20a9', THB: '\u0e3f' };
-  container.innerHTML = `<table class="data-table"><thead><tr><th>Date</th><th>Invoice #</th><th>Mode</th><th>Status</th><th>Route</th><th>Value</th><th></th></tr></thead><tbody>` +
+  container.innerHTML = `<table class="data-table"><thead><tr><th>Date</th><th>Invoice #</th><th>Mode</th><th>Status</th><th>Destination</th><th>Value</th><th></th></tr></thead><tbody>` +
     recent.map(s => {
       const d = s.data;
       const status = s.status || 'Draft';
       let totalVal = 0;
       d.lineItems?.forEach(li => totalVal += li.qty * li.unitValue);
       const sym = currency_symbol[d.currency] || d.currency + ' ';
+      // Destination = buyer city/country or company name
+      const buyer = d.buyer || {};
+      const dest = [buyer.city, buyer.country].filter(Boolean).join(', ') || buyer.company || buyer.name || '-';
       return `<tr>
         <td>${new Date(s.savedAt).toLocaleDateString()}</td>
         <td><strong>${esc(d.invoiceNumber)}</strong></td>
-        <td><span class="tag ${d.mode==='SEA'?'tag-shipper':'tag-delivery'}">${d.mode}</span></td>
+        <td><span class="tag ${d.mode==='SEA'?'tag-sea':'tag-air'}">${d.mode==='SEA'?'✦ SEA':'✈ AIR'}</span></td>
         <td><span class="tag ${STATUS_CLASS[status]}">${status}</span></td>
-        <td>${esc(d.shipper?.company||'-')} &rarr; ${esc(d.buyer?.company||'-')}</td>
+        <td>${esc(dest)}</td>
         <td>${sym}${totalVal.toFixed(2)}</td>
         <td>
           <button class="btn btn-primary btn-sm" onclick="loadShipment('${s.id}')">Load</button>
