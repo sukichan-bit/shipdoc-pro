@@ -63,6 +63,18 @@ async function initDb() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id SERIAL PRIMARY KEY,
+      shipment_ref TEXT NOT NULL,
+      user_email TEXT NOT NULL,
+      user_name TEXT,
+      action TEXT NOT NULL,
+      details TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_activity_ref ON activity_log(shipment_ref, created_at DESC)`);
   console.log('Database ready');
 }
 
@@ -108,6 +120,41 @@ app.post('/api/store/:key', requireAuth, async (req, res) => {
 app.delete('/api/store/:key', requireAuth, async (req, res) => {
   try {
     await pool.query('DELETE FROM store WHERE key = $1', [req.params.key]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Activity log routes ───────────────────────────────────────────────────────
+app.use(express.json({ limit: '1mb' }));
+
+// GET activity for a shipment
+app.get('/api/activity/:ref', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM activity_log WHERE shipment_ref = $1 ORDER BY created_at DESC LIMIT 100',
+      [req.params.ref]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST a new activity entry
+app.post('/api/activity', requireAuth, async (req, res) => {
+  try {
+    const { shipmentRef, action, details } = req.body;
+    const userEmail = req.user.email;
+    const userName = req.user.name || req.user.email.split('@')[0];
+    await pool.query(
+      `INSERT INTO activity_log (shipment_ref, user_email, user_name, action, details)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [shipmentRef, userEmail, userName, action, details || null]
+    );
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
