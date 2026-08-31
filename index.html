@@ -830,29 +830,29 @@ table { border-collapse: collapse; width: 100%; }
 <!-- ── Login screen ─────────────────────────────────────────────────────────── -->
 <div id="loginScreen" style="
   position:fixed;inset:0;z-index:99999;
-  background:linear-gradient(135deg,#0a1628 0%,#0f2a5e 45%,#1a1060 100%);
+  background:linear-gradient(135deg,#dbeafe 0%,#ede9fe 50%,#c7d2fe 100%);
   display:flex;align-items:center;justify-content:center;
   font-family:'Plus Jakarta Sans',sans-serif;
   overflow:hidden;
 ">
   <!-- Decorative blobs -->
-  <div style="position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,0.35) 0%,transparent 70%);top:-150px;left:-150px;pointer-events:none;"></div>
-  <div style="position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,0.3) 0%,transparent 70%);bottom:-100px;right:-100px;pointer-events:none;"></div>
-  <div style="position:absolute;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,246,0.2) 0%,transparent 70%);top:40%;left:60%;pointer-events:none;"></div>
+  <div style="position:absolute;width:650px;height:650px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,0.18) 0%,transparent 70%);top:-180px;left:-180px;pointer-events:none;"></div>
+  <div style="position:absolute;width:550px;height:550px;border-radius:50%;background:radial-gradient(circle,rgba(139,92,246,0.18) 0%,transparent 70%);bottom:-130px;right:-130px;pointer-events:none;"></div>
+  <div style="position:absolute;width:350px;height:350px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,0.14) 0%,transparent 70%);top:35%;left:55%;pointer-events:none;"></div>
 
   <div style="
-    background:rgba(255,255,255,0.08);
-    backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
-    border:1px solid rgba(255,255,255,0.15);
+    background:rgba(255,255,255,0.55);
+    backdrop-filter:blur(32px);-webkit-backdrop-filter:blur(32px);
+    border:1px solid rgba(255,255,255,0.8);
     border-radius:24px;padding:48px 40px;
     max-width:400px;width:90%;text-align:center;
-    box-shadow:0 32px 80px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,0.2);
+    box-shadow:0 20px 60px rgba(37,99,235,0.12),0 4px 16px rgba(99,102,241,0.08),inset 0 1px 0 rgba(255,255,255,0.9);
     font-family:'Plus Jakarta Sans',sans-serif;
     position:relative;z-index:1;
   ">
     <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjIyIiBmaWxsPSIjMjU2M0VCIi8+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMy41Ii8+PHBhdGggZD0iTTMzIDY3IEwyOCA3NiBRNTAgODMgNzIgNzYgTDY3IDY3IFoiIGZpbGw9IndoaXRlIi8+PHJlY3QgeD0iMzYiIHk9IjQ4IiB3aWR0aD0iMjgiIGhlaWdodD0iMjAiIHJ4PSIyIiBmaWxsPSJ3aGl0ZSIvPjxyZWN0IHg9IjQxIiB5PSIzNyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjEzIiByeD0iMiIgZmlsbD0id2hpdGUiLz48cmVjdCB4PSI0NSIgeT0iMjciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMiIgcng9IjMiIGZpbGw9IndoaXRlIi8+PGNpcmNsZSBjeD0iNDQiIGN5PSI1NyIgcj0iMi44IiBmaWxsPSIjMjU2M0VCIi8+PGNpcmNsZSBjeD0iNTYiIGN5PSI1NyIgcj0iMi44IiBmaWxsPSIjMjU2M0VCIi8+PHBhdGggZD0iTTI3IDc3IFEzNiA3MyA0NSA3NyBRNTQgODEgNjMgNzcgUTY5IDc0IDczIDc3IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PHBhdGggZD0iTTI0IDMyIEwyNS41IDI4LjUgTDI3IDMyIEwzMC41IDMzLjUgTDI3IDM1IEwyNS41IDM4LjUgTDI0IDM1IEwyMC41IDMzLjUgWiIgZmlsbD0id2hpdGUiLz48cGF0aCBkPSJNNzEgMjMgTDcyIDIwLjUgTDczIDIzIEw3NS41IDI0IEw3MyAyNSBMNzIgMjcuNSBMNzEgMjUgTDY4LjUgMjQgWiIgZmlsbD0id2hpdGUiLz48Y2lyY2xlIGN4PSIzMCIgY3k9IjIxIiByPSIyIiBmaWxsPSJ3aGl0ZSIvPjxjaXJjbGUgY3g9Ijc0IiBjeT0iMzYiIHI9IjEuNSIgZmlsbD0id2hpdGUiLz48L3N2Zz4=" alt="ShipDoc Pro" width="72" height="72" style="margin-bottom:16px;border-radius:18px;box-shadow:0 8px 28px rgba(37,99,235,0.35);">
-    <h1 style="font-size:1.5rem;font-weight:800;color:#ffffff;margin-bottom:6px;letter-spacing:-.03em;font-family:'Plus Jakarta Sans',sans-serif;">ShipDoc Pro</h1>
-    <p style="color:rgba(255,255,255,0.6);font-size:.875rem;margin-bottom:32px;font-family:'Plus Jakarta Sans',sans-serif;line-height:1.5;">Sign in with your IM8 Google account to continue</p>
+    <h1 style="font-size:1.5rem;font-weight:800;color:#0f172a;margin-bottom:6px;letter-spacing:-.03em;font-family:'Plus Jakarta Sans',sans-serif;">ShipDoc Pro</h1>
+    <p style="color:#475569;font-size:.875rem;margin-bottom:32px;font-family:'Plus Jakarta Sans',sans-serif;line-height:1.5;">Sign in with your IM8 Google account to continue</p>
     <button id="googleSignInBtn" onclick="signInWithGoogle()" style="
       width:100%;padding:13px 20px;
       background:rgba(255,255,255,0.95);border:1px solid rgba(255,255,255,0.3);border-radius:12px;
@@ -865,8 +865,8 @@ table { border-collapse: collapse; width: 100%; }
       <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.29-8.16 2.29-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
       Sign in with Google
     </button>
-    <p id="loginError" style="color:#fca5a5;font-size:.82rem;margin-top:16px;display:none;font-family:'Plus Jakarta Sans',sans-serif;"></p>
-    <p style="color:rgba(255,255,255,0.35);font-size:.75rem;margin-top:20px;font-family:'Plus Jakarta Sans',sans-serif;letter-spacing:.01em;">Access restricted to @prenetics.com accounts</p>
+    <p id="loginError" style="color:#dc2626;font-size:.82rem;margin-top:16px;display:none;font-family:'Plus Jakarta Sans',sans-serif;"></p>
+    <p style="color:#94a3b8;font-size:.75rem;margin-top:20px;font-family:'Plus Jakarta Sans',sans-serif;letter-spacing:.01em;">Access restricted to @prenetics.com accounts</p>
   </div>
 </div>
 
