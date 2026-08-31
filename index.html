@@ -4961,17 +4961,16 @@ function closeModal() { document.getElementById('modalContainer').innerHTML = ''
    ============================================================ */
 const ALLOWED_DOMAIN = 'prenetics.com';
 
-// Firebase config for Auth — uses same project as Firestore sync if configured,
-// otherwise falls back to the SDG_AUTH_CONFIG constant below.
-// IMPORTANT: this config is public (it only grants access to Firebase Auth, not data).
+// Firebase config for Auth — hardcoded (public config, safe to expose).
 // The server verifies the resulting ID token and enforces the domain restriction.
-const SDG_AUTH_CONFIG = (() => {
-  try {
-    const raw = localStorage.getItem('sdg_fb_config');
-    if (raw) return JSON.parse(raw);
-  } catch(e) {}
-  return null;
-})();
+const SDG_AUTH_CONFIG = {
+  apiKey: "AIzaSyDwm2qO3sf8fCvIDcARdG19reSt7i8WYRo",
+  authDomain: "shipdoc-pro.firebaseapp.com",
+  projectId: "shipdoc-pro",
+  storageBucket: "shipdoc-pro.firebasestorage.app",
+  messagingSenderId: "259635927900",
+  appId: "1:259635927900:web:9892ccd28b615e32fe7f99"
+};
 
 let _authApp = null;
 
@@ -5034,11 +5033,8 @@ async function signOut() {
 function _watchAuth() {
   const app = _getOrInitAuthApp();
   if (!app) {
-    // No Firebase config yet — show a helpful message but let the app run
-    // (auth will be enforced at the server level once config is set)
-    console.warn('[Auth] No Firebase config — running without login gate');
-    document.getElementById('loginScreen').style.display = 'none';
-    window.__dbSyncLoad().then(() => { window.__dbSyncResolve(); init(); });
+    // Should never happen now that config is hardcoded — keep login screen visible
+    console.error('[Auth] Firebase could not be initialised');
     return;
   }
 
