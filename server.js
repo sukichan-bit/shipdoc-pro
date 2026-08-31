@@ -1,17 +1,60 @@
 const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
+const admin = require('firebase-admin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// PostgreSQL connection
+// ── Firebase Admin — verify Google ID tokens ──────────────────────────────────
+// Requires env vars: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
+// Set these in Railway: Dashboard → your service → Variables
+let firebaseReady = false;
+try {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId:   process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      // Railway stores the private key with literal \n — convert back to newlines
+      privateKey:  (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    }),
+  });
+  firebaseReady = true;
+  console.log('Firebase Admin ready, auth enabled');
+} catch (e) {
+  console.warn('Firebase Admin not configured — API is UNPROTECTED:', e.message);
+}
+
+// Allowed email domain(s) — only @prenetics.com accounts may access the API
+const ALLOWED_DOMAIN = 'prenetics.com';
+
+// Auth middleware — verify Bearer token from Google Sign-In
+async function requireAuth(req, res, next) {
+  if (!firebaseReady) return next(); // graceful degradation while setting up
+
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Not signed in' });
+
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    // Restrict to company domain
+    if (!decoded.email || !decoded.email.endsWith('@' + ALLOWED_DOMAIN)) {
+      return res.status(403).json({ error: 'Access restricted to @' + ALLOWED_DOMAIN + ' accounts' });
+    }
+    req.user = decoded;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Invalid or expired session — please sign in again' });
+  }
+}
+
+// ── PostgreSQL ────────────────────────────────────────────────────────────────
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Create store table on startup
 async function initDb() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS store (
@@ -24,10 +67,14 @@ async function initDb() {
 }
 
 app.use(express.text({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname)));
+
+// Serve only index.html explicitly — do NOT expose server.js or package.json
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
+// ── API routes (all protected) ────────────────────────────────────────────────
 
 // GET all store values
-app.get('/api/store', async (req, res) => {
+app.get('/api/store', requireAuth, async (req, res) => {
   try {
     const result = await pool.query('SELECT key, value FROM store');
     const data = {};
@@ -40,7 +87,7 @@ app.get('/api/store', async (req, res) => {
 });
 
 // POST (upsert) a single store value
-app.post('/api/store/:key', async (req, res) => {
+app.post('/api/store/:key', requireAuth, async (req, res) => {
   try {
     const { key } = req.params;
     const value = req.body;
@@ -58,7 +105,7 @@ app.post('/api/store/:key', async (req, res) => {
 });
 
 // DELETE a single store value
-app.delete('/api/store/:key', async (req, res) => {
+app.delete('/api/store/:key', requireAuth, async (req, res) => {
   try {
     await pool.query('DELETE FROM store WHERE key = $1', [req.params.key]);
     res.json({ ok: true });

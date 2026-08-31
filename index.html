@@ -14,6 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 <!-- Firestore loaded via dynamic import() to support named databases -->
 
 <!-- PostgreSQL sync: mirrors localStorage to the server so all team members share data -->
@@ -23,15 +24,27 @@
   const _setItem = localStorage.setItem.bind(localStorage);
   const _removeItem = localStorage.removeItem.bind(localStorage);
 
+  // Auth token getter — populated once Firebase Auth signs the user in
+  window.__getAuthToken = async function () {
+    if (!window.firebase || !firebase.apps.length) return null;
+    try { return await firebase.auth().currentUser?.getIdToken(); }
+    catch (e) { return null; }
+  };
+
+  async function authHeaders() {
+    const token = await window.__getAuthToken();
+    return token ? { 'Authorization': 'Bearer ' + token } : {};
+  }
+
   // Intercept all localStorage.setItem calls that start with sdg_
   localStorage.setItem = function (key, value) {
     _setItem(key, value);
     if (key.startsWith(SDG_PREFIX)) {
-      fetch('/api/store/' + encodeURIComponent(key), {
+      authHeaders().then(h => fetch('/api/store/' + encodeURIComponent(key), {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
+        headers: { 'Content-Type': 'text/plain', ...h },
         body: value
-      }).catch(() => {});
+      })).catch(() => {});
     }
   };
 
@@ -39,18 +52,25 @@
   localStorage.removeItem = function (key) {
     _removeItem(key);
     if (key.startsWith(SDG_PREFIX)) {
-      fetch('/api/store/' + encodeURIComponent(key), { method: 'DELETE' }).catch(() => {});
+      authHeaders().then(h => fetch('/api/store/' + encodeURIComponent(key), {
+        method: 'DELETE', headers: h
+      })).catch(() => {});
     }
   };
 
-  // On load: pull all data from server and populate localStorage
-  window.__dbSyncReady = fetch('/api/store')
-    .then(r => r.json())
-    .then(data => {
-      Object.entries(data).forEach(([key, value]) => _setItem(key, value));
-      console.log('[DB Sync] Loaded', Object.keys(data).length, 'keys from server');
-    })
-    .catch(err => console.warn('[DB Sync] Could not load from server:', err));
+  // Called after sign-in to pull all data from server
+  window.__dbSyncLoad = function () {
+    return authHeaders().then(h => fetch('/api/store', { headers: h }))
+      .then(r => r.json())
+      .then(data => {
+        Object.entries(data).forEach(([key, value]) => _setItem(key, value));
+        console.log('[DB Sync] Loaded', Object.keys(data).length, 'keys from server');
+      })
+      .catch(err => console.warn('[DB Sync] Could not load from server:', err));
+  };
+
+  // Defer the initial load until after auth (see authReady below)
+  window.__dbSyncReady = new Promise(resolve => { window.__dbSyncResolve = resolve; });
 })();
 </script>
 <style>
@@ -725,6 +745,38 @@ table { border-collapse: collapse; width: 100%; }
 </head>
 <body>
 
+<!-- ── Login screen ─────────────────────────────────────────────────────────── -->
+<div id="loginScreen" style="
+  position:fixed;inset:0;z-index:99999;
+  background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Plus Jakarta Sans',sans-serif;
+">
+  <div style="
+    background:#fff;border-radius:16px;padding:48px 40px;
+    max-width:380px;width:90%;text-align:center;
+    box-shadow:0 25px 60px rgba(0,0,0,.35);
+  ">
+    <div style="font-size:3rem;margin-bottom:12px;">🚢</div>
+    <h1 style="font-size:1.4rem;font-weight:700;color:#0f172a;margin-bottom:6px;">ShipDoc Pro</h1>
+    <p style="color:#64748b;font-size:.9rem;margin-bottom:32px;">Sign in with your IM8 Google account to continue</p>
+    <button id="googleSignInBtn" onclick="signInWithGoogle()" style="
+      width:100%;padding:12px 20px;
+      background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;
+      display:flex;align-items:center;justify-content:center;gap:12px;
+      font-family:inherit;font-size:.95rem;font-weight:600;color:#1e293b;
+      cursor:pointer;transition:background .15s,box-shadow .15s;
+      box-shadow:0 1px 3px rgba(0,0,0,.08);
+    " onmouseover="this.style.background='#f8fafc';this.style.boxShadow='0 4px 12px rgba(0,0,0,.12)'"
+       onmouseout="this.style.background='#fff';this.style.boxShadow='0 1px 3px rgba(0,0,0,.08)'">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.29-8.16 2.29-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+      Sign in with Google
+    </button>
+    <p id="loginError" style="color:#ef4444;font-size:.82rem;margin-top:16px;display:none;"></p>
+    <p style="color:#94a3b8;font-size:.75rem;margin-top:20px;">Access restricted to @prenetics.com accounts</p>
+  </div>
+</div>
+
 <div class="toast-container" id="toastContainer"></div>
 
 <div class="app">
@@ -784,7 +836,17 @@ table { border-collapse: collapse; width: 100%; }
   <div class="main">
     <header class="main-header no-print">
       <h1 id="pageTitle">Dashboard</h1>
-      <span class="header-badge">ShipDoc Pro</span>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="header-badge">ShipDoc Pro</span>
+        <div id="userBadge" style="display:none;align-items:center;gap:8px;font-size:.82rem;color:var(--gray-500);">
+          <img id="userAvatar" src="" alt="" width="26" height="26" style="border-radius:50%;display:none;">
+          <span id="userEmail"></span>
+          <button onclick="signOut()" title="Sign out" style="
+            background:none;border:1px solid var(--gray-200);border-radius:6px;
+            padding:3px 8px;font-size:.78rem;color:var(--gray-500);cursor:pointer;
+          ">Sign out</button>
+        </div>
+      </div>
     </header>
     <div class="main-body">
 
@@ -4895,6 +4957,115 @@ function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.
 function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
 
 /* ============================================================
+   GOOGLE AUTH
+   ============================================================ */
+const ALLOWED_DOMAIN = 'prenetics.com';
+
+// Firebase config for Auth — uses same project as Firestore sync if configured,
+// otherwise falls back to the SDG_AUTH_CONFIG constant below.
+// IMPORTANT: this config is public (it only grants access to Firebase Auth, not data).
+// The server verifies the resulting ID token and enforces the domain restriction.
+const SDG_AUTH_CONFIG = (() => {
+  try {
+    const raw = localStorage.getItem('sdg_fb_config');
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return null;
+})();
+
+let _authApp = null;
+
+function _getOrInitAuthApp() {
+  if (_authApp) return _authApp;
+  if (!SDG_AUTH_CONFIG) {
+    document.getElementById('loginError').textContent =
+      'No Firebase config found. Please ask your admin to set up Firebase Auth.';
+    document.getElementById('loginError').style.display = 'block';
+    return null;
+  }
+  // Re-use existing firebase app if already initialised (by Firestore sync)
+  if (firebase.apps.length) {
+    _authApp = firebase.app();
+  } else {
+    _authApp = firebase.initializeApp(SDG_AUTH_CONFIG);
+  }
+  return _authApp;
+}
+
+async function signInWithGoogle() {
+  const btn = document.getElementById('googleSignInBtn');
+  const errEl = document.getElementById('loginError');
+  btn.disabled = true;
+  btn.innerHTML = '<span style="opacity:.6">Signing in…</span>';
+  errEl.style.display = 'none';
+
+  const app = _getOrInitAuthApp();
+  if (!app) { btn.disabled = false; btn.innerHTML = 'Sign in with Google'; return; }
+
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ hd: ALLOWED_DOMAIN }); // hint to show only company accounts
+
+  try {
+    const result = await firebase.auth().signInWithPopup(provider);
+    const email = result.user.email || '';
+    if (!email.endsWith('@' + ALLOWED_DOMAIN)) {
+      await firebase.auth().signOut();
+      errEl.textContent = 'Access restricted to @' + ALLOWED_DOMAIN + ' accounts. You signed in as ' + email + '.';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.29-8.16 2.29-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg> Sign in with Google';
+      return;
+    }
+    // onAuthStateChanged handles the rest
+  } catch (e) {
+    errEl.textContent = e.message || 'Sign-in failed. Please try again.';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.29-8.16 2.29-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg> Sign in with Google';
+  }
+}
+
+async function signOut() {
+  try { await firebase.auth().signOut(); } catch(e) {}
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+// Watch auth state — this is the single gating point for the whole app
+function _watchAuth() {
+  const app = _getOrInitAuthApp();
+  if (!app) {
+    // No Firebase config yet — show a helpful message but let the app run
+    // (auth will be enforced at the server level once config is set)
+    console.warn('[Auth] No Firebase config — running without login gate');
+    document.getElementById('loginScreen').style.display = 'none';
+    window.__dbSyncLoad().then(() => { window.__dbSyncResolve(); init(); });
+    return;
+  }
+
+  firebase.auth().onAuthStateChanged(async user => {
+    if (user && user.email && user.email.endsWith('@' + ALLOWED_DOMAIN)) {
+      // Signed in with correct domain — show app
+      document.getElementById('loginScreen').style.display = 'none';
+      // Show user badge
+      const badge = document.getElementById('userBadge');
+      if (badge) {
+        badge.style.display = 'flex';
+        document.getElementById('userEmail').textContent = user.email;
+        const avatar = document.getElementById('userAvatar');
+        if (user.photoURL) { avatar.src = user.photoURL; avatar.style.display = 'block'; }
+      }
+      // Load DB data (with auth token) then start the app
+      await window.__dbSyncLoad();
+      window.__dbSyncResolve();
+      if (!window.__appInited) { window.__appInited = true; init(); }
+    } else {
+      // Not signed in (or wrong domain) — show login screen
+      document.getElementById('loginScreen').style.display = 'flex';
+    }
+  });
+}
+
+/* ============================================================
    INIT
    ============================================================ */
 function init() {
@@ -4907,7 +5078,7 @@ function init() {
   cloudInit(); // auto-connect if team config was previously saved
 }
 
-init();
+_watchAuth(); // replaces bare init() call — init() is called after auth succeeds
 </script>
 </body>
 </html>
