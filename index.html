@@ -3423,7 +3423,7 @@ function generateCI(data) {
     <div class="doc-totals">
       <div class="total-line"><span>Shipping Term:</span><span><strong>${esc(d.shippingTerm)}</strong></span></div>
       <div class="total-line"><span>Total Weight:</span><span><strong>${totalWt.toFixed(2)} KG</strong></span></div>
-      ${isEuB2B ? `<div class="total-line"><span>Tax Rate:</span><span><strong>0% — Intra-Community supply exempt from VAT</strong></span></div>` : ''}
+      ${isEuB2B ? `<div class="total-line"><span>Tax Rate:</span><span><strong>0%</strong></span></div>` : ''}
       <div class="total-line grand"><span>Total Value (${currency}):</span><span>${totalVal.toFixed(2)}</span></div>
     </div>`;
 
