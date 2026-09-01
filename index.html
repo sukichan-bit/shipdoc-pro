@@ -672,18 +672,20 @@ table { border-collapse: collapse; width: 100%; }
 @media print {
   @page { size: A4; margin: 1.2cm 1.5cm; }
 
-  /* body background gradient is reset to plain white — the standard way that works */
-  body { background: white !important; font-size: 9.5pt !important; color: #000 !important; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important; }
-  /* Hide the login screen overlay in print just in case */
+  /* Reset html/body to fill the A4 page cleanly */
+  html { width: 100% !important; margin: 0 !important; padding: 0 !important; }
+  body { background: white !important; font-size: 9.5pt !important; color: #000 !important; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+  /* Hide overlays */
   #loginScreen { display: none !important; }
-  .app, .main, .main-body, .page, .page#page-print,
-  .print-page, .print-doc { background: white !important; background-image: none !important; }
+  /* Force every wrapper to block layout + full width so nothing bleeds */
+  .app { display: block !important; width: 100% !important; background: white !important; }
+  .main { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; background: white !important; }
+  .main-body { display: block !important; width: 100% !important; padding: 0 !important; max-width: none !important; background: white !important; }
+  .page, .page#page-print, .print-page, .print-doc { background: white !important; background-image: none !important; }
   .sidebar, .main-header, .no-print, .toast-container { display: none !important; }
-  .main { margin-left: 0 !important; }
-  .main-body { padding: 0 !important; max-width: none !important; }
   .print-page {
     page-break-after: always; break-after: page;
-    padding: 0; width: 100%; max-width: none;
+    padding: 0; width: 100% !important; max-width: none !important; box-sizing: border-box;
   }
   .print-page:last-child { page-break-after: auto; break-after: auto; }
   .print-doc { display: block !important; }
