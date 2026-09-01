@@ -673,7 +673,10 @@ table { border-collapse: collapse; width: 100%; }
 @media print {
   @page { size: A4; margin: 1.2cm 1.5cm; }
 
-  body { background: white !important; font-size: 9.5pt !important; }
+  body, body::before, body::after { background: white !important; background-image: none !important; }
+  body::before, body::after { display: none !important; }
+  body { font-size: 9.5pt !important; color: #000 !important; }
+  .app, .main, .main-body, .page, .page#page-print { background: white !important; }
   .sidebar, .main-header, .no-print, .toast-container { display: none !important; }
   .main { margin-left: 0 !important; }
   .main-body { padding: 0 !important; max-width: none !important; }
