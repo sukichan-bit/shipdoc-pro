@@ -165,8 +165,8 @@ body {
   color: var(--gray-800); line-height: 1.55; min-height: 100vh;
   overflow-x: hidden;
 }
-body:not(.printing)::before {
-  content: '';
+/* Background gradient rendered as a real element so @media print can reliably hide it */
+#app-bg {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
     radial-gradient(ellipse 70% 55% at 70% 0%, rgba(99,102,241,0.12) 0%, transparent 65%),
@@ -674,13 +674,8 @@ table { border-collapse: collapse; width: 100%; }
   @page { size: A4; margin: 1.2cm 1.5cm; }
 
   body { background: white !important; font-size: 9.5pt !important; color: #000 !important; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important; }
-  body::before, body::after {
-    content: none !important;
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    background: none !important;
-  }
+  /* Hide the gradient background div — pseudo-elements are unreliable in Chrome PDF */
+  #app-bg { display: none !important; }
   .app, .main, .main-body, .page, .page#page-print,
   .print-page, .print-doc { background: white !important; background-image: none !important; }
   .sidebar, .main-header, .no-print, .toast-container { display: none !important; }
@@ -824,6 +819,8 @@ table { border-collapse: collapse; width: 100%; }
 </style>
 </head>
 <body>
+<!-- Background gradient div — a real element so @media print can reliably hide it with display:none -->
+<div id="app-bg" aria-hidden="true"></div>
 
 <!-- ── Login screen styles ───────────────────────────────────────────────────── -->
 <style>
@@ -3655,19 +3652,14 @@ function exportPDF(data, which) {
   const prevTitle = document.title;
   document.title = printTitle;
 
-  // Add .printing class to body — this disables body:not(.printing)::before
-  // so the gradient overlay is fully removed from the DOM before Chrome captures the PDF
-  document.body.classList.add('printing');
-  const _removePrinting = () => document.body.classList.remove('printing');
-  window.addEventListener('afterprint', _removePrinting, { once: true });
-
   // Wait for all fonts (Plus Jakarta Sans) to be fully loaded before printing
-  // so Chrome embeds the correct typeface rather than falling back to a system font
+  // so Chrome embeds the correct typeface rather than falling back to a system font.
+  // #app-bg (the gradient div) is hidden via @media print { #app-bg { display:none } }
+  // — a real element is reliably hidden, unlike ::before pseudo-elements in Chrome PDF.
   (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
     setTimeout(() => {
       window.print();
       document.title = prevTitle;
-      setTimeout(_removePrinting, 3000); // fallback in case afterprint doesn't fire
       navigateTo('shipment');
       switchShipmentTab(document.querySelector('[data-tab="tab-preview"]'));
     }, 100);
