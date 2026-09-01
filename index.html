@@ -673,7 +673,7 @@ table { border-collapse: collapse; width: 100%; }
 @media print {
   @page { size: A4; margin: 1.2cm 1.5cm; }
 
-  body { background: white !important; font-size: 9.5pt !important; color: #000 !important; }
+  body { background: white !important; font-size: 9.5pt !important; color: #000 !important; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important; }
   body::before, body::after {
     content: none !important;
     display: none !important;
@@ -3661,13 +3661,17 @@ function exportPDF(data, which) {
   const _removePrinting = () => document.body.classList.remove('printing');
   window.addEventListener('afterprint', _removePrinting, { once: true });
 
-  setTimeout(() => {
-    window.print();
-    document.title = prevTitle;
-    setTimeout(_removePrinting, 3000); // fallback in case afterprint doesn't fire
-    navigateTo('shipment');
-    switchShipmentTab(document.querySelector('[data-tab="tab-preview"]'));
-  }, 200);
+  // Wait for all fonts (Plus Jakarta Sans) to be fully loaded before printing
+  // so Chrome embeds the correct typeface rather than falling back to a system font
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
+    setTimeout(() => {
+      window.print();
+      document.title = prevTitle;
+      setTimeout(_removePrinting, 3000); // fallback in case afterprint doesn't fire
+      navigateTo('shipment');
+      switchShipmentTab(document.querySelector('[data-tab="tab-preview"]'));
+    }, 100);
+  });
 }
 
 /* ---- EXCEL (.xls via HTML table) ---- */
