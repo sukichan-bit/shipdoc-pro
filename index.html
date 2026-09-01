@@ -165,7 +165,7 @@ body {
   color: var(--gray-800); line-height: 1.55; min-height: 100vh;
   overflow-x: hidden;
 }
-body::before {
+body:not(.printing)::before {
   content: '';
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
@@ -3642,75 +3642,32 @@ function exportDoc(which) {
   }
 }
 
-/* ---- PDF — open a clean blank window so app CSS / body::before never appear ---- */
+/* ---- PDF (print dialog) ---- */
 function exportPDF(data, which) {
-  let bodyHTML = '';
-  if (which === 'ci')   bodyHTML = `<div class="print-page">${generateCI(data)}</div>`;
-  if (which === 'pl')   bodyHTML = `<div class="print-page">${generatePL(data)}</div>`;
-  if (which === 'both') bodyHTML = `<div class="print-page">${generateCI(data)}</div><div class="print-page">${generatePL(data)}</div>`;
-
+  const printPage = document.getElementById('page-print');
+  if (which === 'ci')   printPage.innerHTML = `<div class="print-page print-doc">${generateCI(data)}</div>`;
+  if (which === 'pl')   printPage.innerHTML = `<div class="print-page print-doc">${generatePL(data)}</div>`;
+  if (which === 'both') printPage.innerHTML = `<div class="print-page print-doc">${generateCI(data)}</div><div class="print-page print-doc">${generatePL(data)}</div>`;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  printPage.classList.add('active');
   const invoiceNo = (data.invoiceNumber || data.puRef || 'shipment').replace(/[^a-zA-Z0-9_\-]/g, '_');
-  const title = which === 'both' ? `CIPL_${invoiceNo}` : which === 'ci' ? `CI_${invoiceNo}` : `PL_${invoiceNo}`;
+  const printTitle = which === 'both' ? `CIPL_${invoiceNo}` : which === 'ci' ? `CI_${invoiceNo}` : `PL_${invoiceNo}`;
+  const prevTitle = document.title;
+  document.title = printTitle;
 
-  /* All CSS needed by the generated doc HTML — self-contained, no app styles */
-  const css = `
-    @page { size: A4; margin: 1.2cm 1.5cm; }
-    *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    html, body { background: #ffffff; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #000; }
-    .print-page { page-break-after: always; break-after: page; width: 100%; }
-    .print-page:last-child { page-break-after: auto; break-after: auto; }
-    .doc-letterhead { text-align: center; margin-bottom: 4mm; }
-    .doc-letterhead img { max-height: 55px; max-width: 100%; }
-    .doc-title { text-align: center; font-size: 13pt; font-weight: 700; margin: 3mm 0; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 2mm; }
-    .doc-header-grid { display: grid; gap: 2.5mm; margin-bottom: 3mm; }
-    .doc-header-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
-    .doc-header-grid.cols-2 { grid-template-columns: 1fr 1fr; }
-    .doc-header-grid.cols-1 { grid-template-columns: 1fr; }
-    .doc-header-box { border: 1px solid #999; padding: 2mm 3mm; font-size: 8.5pt; line-height: 1.4; background: #fff; }
-    .doc-header-box .box-label { font-weight: 700; font-size: 8pt; text-transform: uppercase; margin-bottom: 1mm; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 1mm; }
-    .doc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 8mm; margin-bottom: 3mm; font-size: 9pt; }
-    .doc-fields .field { display: flex; gap: 2mm; }
-    .doc-fields .field-label { font-weight: 700; white-space: nowrap; min-width: 100px; }
-    .doc-table { width: 100%; border-collapse: collapse; margin-bottom: 3mm; font-size: 8.5pt; }
-    .doc-table th { background: #eeeeee; font-weight: 700; border: 1px solid #999; padding: 1.5mm 2.5mm; text-align: left; font-size: 8pt; }
-    .doc-table td { background: #fff; border: 1px solid #999; padding: 1.5mm 2.5mm; vertical-align: top; }
-    .doc-table .text-right { text-align: right; }
-    .doc-table .total-row td { font-weight: 700; background: #f5f5f5; }
-    .doc-totals { margin-bottom: 3mm; font-size: 9pt; break-inside: avoid; }
-    .doc-totals .total-line { display: flex; justify-content: flex-end; gap: 4mm; padding: 0.5mm 0; }
-    .doc-totals .total-line.grand { font-weight: 700; font-size: 10pt; border-top: 2px solid #333; padding-top: 2mm; margin-top: 1mm; }
-    .doc-declaration { font-size: 8.5pt; border: 1px solid #999; padding: 2.5mm; margin: 3mm 0; line-height: 1.4; break-inside: avoid; background: #fff; }
-    .doc-footer { display: flex; justify-content: space-between; margin-top: 4mm; font-size: 9pt; break-inside: avoid; break-before: avoid; }
-    .signature-line { border-top: 1px solid #333; padding-top: 2mm; min-width: 150px; text-align: center; margin-top: 10mm; }
-    .doc-goods-desc { font-size: 8pt; line-height: 1.4; }
-    .doc-goods-desc .sku { font-weight: 700; }
-    .doc-goods-desc .detail { color: #555; }
-    .doc-pallet-remarks { white-space: pre-line; font-size: 8pt; }
-    .text-right { text-align: right; }
-    td[rowspan] { vertical-align: middle; }
-  `;
+  // Add .printing class to body — this disables body:not(.printing)::before
+  // so the gradient overlay is fully removed from the DOM before Chrome captures the PDF
+  document.body.classList.add('printing');
+  const _removePrinting = () => document.body.classList.remove('printing');
+  window.addEventListener('afterprint', _removePrinting, { once: true });
 
-  const win = window.open('', '_blank', 'width=900,height=700');
-  if (!win) {
-    showToast('Pop-up blocked — please allow pop-ups for this site and try again', 'error');
-    return;
-  }
-
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${css}</style></head><body>${bodyHTML}</body></html>`);
-  win.document.close();
-
-  // All images are inline base64 so they load instantly; small delay for layout pass
-  const doPrint = () => {
-    win.focus();
-    win.print();
-    win.addEventListener('afterprint', () => { try { win.close(); } catch(e){} }, { once: true });
-  };
-  if (win.document.readyState === 'complete') {
-    setTimeout(doPrint, 300);
-  } else {
-    win.addEventListener('load', () => setTimeout(doPrint, 150));
-  }
+  setTimeout(() => {
+    window.print();
+    document.title = prevTitle;
+    setTimeout(_removePrinting, 3000); // fallback in case afterprint doesn't fire
+    navigateTo('shipment');
+    switchShipmentTab(document.querySelector('[data-tab="tab-preview"]'));
+  }, 200);
 }
 
 /* ---- EXCEL (.xls via HTML table) ---- */
