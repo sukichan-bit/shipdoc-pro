@@ -169,7 +169,6 @@ body {
     radial-gradient(ellipse 70% 55% at 70% 0%, rgba(99,102,241,0.12) 0%, transparent 65%),
     radial-gradient(ellipse 50% 45% at 10% 90%, rgba(37,99,235,0.10) 0%, transparent 65%),
     #EEF3FF;
-  background-attachment: fixed;
   color: var(--gray-800); line-height: 1.55; min-height: 100vh;
   overflow-x: hidden;
 }
@@ -3652,14 +3651,24 @@ function exportPDF(data, which) {
   const prevTitle = document.title;
   document.title = printTitle;
 
-  // Wait for all fonts (Plus Jakarta Sans) to be fully loaded before printing
-  // so Chrome embeds the correct typeface rather than falling back to a system font.
-  // #app-bg (the gradient div) is hidden via @media print { #app-bg { display:none } }
-  // — a real element is reliably hidden, unlike ::before pseudo-elements in Chrome PDF.
+  // JS inline style beats everything — @media print, background-attachment:fixed,
+  // position:fixed overlays — Chrome cannot render what isn't there.
+  // Set white background directly on body before print, restore after.
+  const _origBg = document.body.style.cssText; // save all inline styles
+  document.body.style.setProperty('background', 'white', 'important');
+  document.body.style.setProperty('background-image', 'none', 'important');
+
+  const _restoreBg = () => {
+    document.body.style.cssText = _origBg;
+  };
+  window.addEventListener('afterprint', _restoreBg, { once: true });
+
+  // Wait for fonts then print
   (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
     setTimeout(() => {
       window.print();
       document.title = prevTitle;
+      setTimeout(_restoreBg, 3000); // fallback if afterprint doesn't fire
       navigateTo('shipment');
       switchShipmentTab(document.querySelector('[data-tab="tab-preview"]'));
     }, 100);
