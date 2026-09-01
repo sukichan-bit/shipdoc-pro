@@ -367,7 +367,7 @@ table { border-collapse: collapse; width: 100%; }
 /* ============================================================
    TAG BADGES
    ============================================================ */
-.tag { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: .72rem; font-weight: 700; letter-spacing: .03em; }
+.tag { display: inline-flex; align-items: center; gap: 3px; padding: 3px 10px; border-radius: 99px; font-size: .72rem; font-weight: 700; letter-spacing: .03em; white-space: nowrap; }
 .tag-shipper  { background: rgba(37,99,235,0.1);  color: #1D4ED8; }
 .tag-buyer    { background: rgba(234,88,12,0.1);  color: #C2410C; }
 .tag-notify   { background: rgba(217,119,6,0.1);  color: #B45309; }
@@ -1188,6 +1188,13 @@ table { border-collapse: collapse; width: 100%; }
                 <div class="form-group sea-only">
                   <label>Consignee Type</label>
                   <input type="text" id="consigneeType" value="DIRECT CONSUMER">
+                </div>
+                <div class="form-group">
+                  <label>EU B2B Invoice</label>
+                  <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal;font-size:.9rem;color:var(--gray-700);">
+                    <input type="checkbox" id="euB2B" style="width:15px;height:15px;accent-color:#4F46E5;cursor:pointer;">
+                    Intra-Community sale (0% VAT)
+                  </label>
                 </div>
                 <div class="form-group">
                   <label>Shipping Term</label>
@@ -3312,6 +3319,7 @@ function getShipmentData() {
     containerNumber: val('containerNumber'),
     sealNumber: val('sealNumber'),
     consigneeType: val('consigneeType'),
+    euB2B: document.getElementById('euB2B')?.checked || false,
     shippingTerm: document.getElementById('shippingTerm')?.value || '',
     currency: getCurrency(),
     lineItems: [...lineItems],
@@ -3326,6 +3334,7 @@ function getShipmentData() {
 function generateCI(data) {
   const d = data;
   const isSea = d.mode === 'SEA';
+  const isEuB2B = d.euB2B || false;
   const currency = d.currency;
   let totalPcs = 0, totalWt = 0, totalVal = 0;
   d.lineItems.forEach(li => { totalPcs += li.qty; totalWt += _docPalletNetWeightFor(d.pallets, li.productId) ?? (li.netWeight != null ? li.netWeight : li.qty * li.unitWeight); totalVal += li.qty * li.unitValue; });
@@ -3414,6 +3423,7 @@ function generateCI(data) {
     <div class="doc-totals">
       <div class="total-line"><span>Shipping Term:</span><span><strong>${esc(d.shippingTerm)}</strong></span></div>
       <div class="total-line"><span>Total Weight:</span><span><strong>${totalWt.toFixed(2)} KG</strong></span></div>
+      ${isEuB2B ? `<div class="total-line"><span>Tax Rate:</span><span><strong>0% — Intra-Community supply exempt from VAT</strong></span></div>` : ''}
       <div class="total-line grand"><span>Total Value (${currency}):</span><span>${totalVal.toFixed(2)}</span></div>
     </div>`;
 
@@ -3448,6 +3458,7 @@ function generateCI(data) {
 
   return `
     ${getLetterheadHTML()}
+    ${isEuB2B ? `<div style="text-align:center;font-size:8.5pt;font-weight:700;color:#4338CA;letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;">Invoice – Intra-Community Sale</div>` : ''}
     <div class="doc-title">Commercial Invoice</div>
     ${headerGrid}
     ${addressRow}
@@ -4071,6 +4082,7 @@ function _resetShipmentForm() {
   document.getElementById('containerNumber').value = '';
   document.getElementById('sealNumber').value      = '';
   document.getElementById('consigneeType').value   = 'DIRECT CONSUMER';
+  document.getElementById('euB2B').checked         = false;
   document.getElementById('shippingTerm').value    = document.getElementById('shippingTerm').options[0]?.value || '';
   document.getElementById('currency').value        = 'USD';
   document.getElementById('currencyCustomWrap').style.display = 'none';
@@ -4102,6 +4114,7 @@ function _populateShipmentForm(record, keepInvoiceNumber) {
   document.getElementById('containerNumber').value = d.containerNumber || '';
   document.getElementById('sealNumber').value     = d.sealNumber || '';
   document.getElementById('consigneeType').value  = d.consigneeType || '';
+  document.getElementById('euB2B').checked        = d.euB2B || false;
   document.getElementById('shippingTerm').value   = d.shippingTerm || '';
   const _knownCurr = ['USD','EUR','GBP','HKD','CAD','AUD','SGD','CNY','JPY','MYR','TWD','KRW','THB'];
   const _savedCurr = d.currency || 'USD';
