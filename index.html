@@ -161,17 +161,17 @@
 html { font-size: 14px; }
 body {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #EEF3FF;
-  color: var(--gray-800); line-height: 1.55; min-height: 100vh;
-  overflow-x: hidden;
-}
-/* Background gradient rendered as a real element so @media print can reliably hide it */
-#app-bg {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  /* Gradient lives on body with background-attachment:fixed so it stays anchored
+     to the viewport without needing a position:fixed overlay element.
+     @media print overrides this with white — a standard body background is
+     reliably suppressed, unlike fixed pseudo-elements or fixed divs. */
   background:
     radial-gradient(ellipse 70% 55% at 70% 0%, rgba(99,102,241,0.12) 0%, transparent 65%),
     radial-gradient(ellipse 50% 45% at 10% 90%, rgba(37,99,235,0.10) 0%, transparent 65%),
     #EEF3FF;
+  background-attachment: fixed;
+  color: var(--gray-800); line-height: 1.55; min-height: 100vh;
+  overflow-x: hidden;
 }
 .app { display: flex; min-height: 100vh; position: relative; z-index: 1; }
 a { color: var(--blue); text-decoration: none; }
@@ -673,9 +673,10 @@ table { border-collapse: collapse; width: 100%; }
 @media print {
   @page { size: A4; margin: 1.2cm 1.5cm; }
 
+  /* body background gradient is reset to plain white — the standard way that works */
   body { background: white !important; font-size: 9.5pt !important; color: #000 !important; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important; }
-  /* Hide the gradient background div — pseudo-elements are unreliable in Chrome PDF */
-  #app-bg { display: none !important; }
+  /* Hide the login screen overlay in print just in case */
+  #loginScreen { display: none !important; }
   .app, .main, .main-body, .page, .page#page-print,
   .print-page, .print-doc { background: white !important; background-image: none !important; }
   .sidebar, .main-header, .no-print, .toast-container { display: none !important; }
@@ -819,8 +820,6 @@ table { border-collapse: collapse; width: 100%; }
 </style>
 </head>
 <body>
-<!-- Background gradient div — a real element so @media print can reliably hide it with display:none -->
-<div id="app-bg" aria-hidden="true"></div>
 
 <!-- ── Login screen styles ───────────────────────────────────────────────────── -->
 <style>
@@ -897,7 +896,8 @@ table { border-collapse: collapse; width: 100%; }
 </div>
 
 <!-- ── Login screen ─────────────────────────────────────────────────────────── -->
-<div id="loginScreen">
+<!-- Hidden by default; shown by _watchAuth() only when Firebase confirms user is NOT logged in -->
+<div id="loginScreen" style="display:none">
   <!-- Decorative blobs -->
   <div class="login-blob" style="width:720px;height:720px;background:radial-gradient(circle,rgba(37,99,235,0.3) 0%,transparent 70%);top:-260px;left:-260px;animation-delay:0s;"></div>
   <div class="login-blob" style="width:620px;height:620px;background:radial-gradient(circle,rgba(139,92,246,0.3) 0%,transparent 70%);bottom:-200px;right:-200px;animation-duration:12s;animation-delay:-4s;"></div>
