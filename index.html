@@ -2000,7 +2000,7 @@ let currentMode = 'SEA';
 
 function setMode(mode) {
   currentMode = mode;
-  document.querySelectorAll('#modeToggle button').forEach(b => b.classList.toggle('active', b.textContent.trim() === mode));
+  document.querySelectorAll('#modeToggle button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   document.querySelectorAll('.sea-only').forEach(el => {
     el.classList.toggle('hidden', mode === 'AIR');
   });
@@ -3458,7 +3458,7 @@ function generateCI(data) {
 
   return `
     ${getLetterheadHTML()}
-    ${isEuB2B ? `<div style="text-align:center;font-size:8.5pt;font-weight:700;color:#4338CA;letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;">Invoice – Intra-Community Sale</div>` : ''}
+    ${isEuB2B ? `<div class="doc-title" style="border-bottom:none;margin-bottom:0;padding-bottom:1mm;">Invoice – Intra-Community Sale</div>` : ''}
     <div class="doc-title">Commercial Invoice</div>
     ${headerGrid}
     ${addressRow}
