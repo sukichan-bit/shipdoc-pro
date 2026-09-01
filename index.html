@@ -3642,85 +3642,22 @@ function exportDoc(which) {
 
 /* ---- PDF (print dialog) ---- */
 function exportPDF(data, which) {
+  const printPage = document.getElementById('page-print');
+  if (which === 'ci')   printPage.innerHTML = `<div class="print-page print-doc">${generateCI(data)}</div>`;
+  if (which === 'pl')   printPage.innerHTML = `<div class="print-page print-doc">${generatePL(data)}</div>`;
+  if (which === 'both') printPage.innerHTML = `<div class="print-page print-doc">${generateCI(data)}</div><div class="print-page print-doc">${generatePL(data)}</div>`;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  printPage.classList.add('active');
   const invoiceNo = (data.invoiceNumber || data.puRef || 'shipment').replace(/[^a-zA-Z0-9_\-]/g, '_');
   const printTitle = which === 'both' ? `CIPL_${invoiceNo}` : which === 'ci' ? `CI_${invoiceNo}` : `PL_${invoiceNo}`;
-
-  // Build page divs — generateCI/PL already embed base64 signature/stamp/letterhead
-  const pages = [];
-  if (which === 'ci' || which === 'both') pages.push(generateCI(data));
-  if (which === 'pl' || which === 'both') pages.push(generatePL(data));
-  const bodyHTML = pages.map((p, i) =>
-    `<div class="print-page${i === pages.length - 1 ? ' last-page' : ''}">${p}</div>`
-  ).join('');
-
-  // Open a clean blank window — no app chrome, no gradients, no layout constraints.
-  // This is the only reliable way to get a pixel-perfect A4 PDF from Chrome.
-  const win = window.open('', '_blank');
-  if (!win) { alert('Pop-up blocked — please allow pop-ups for this site and try again.'); return; }
-
-  win.document.write(`<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>${printTitle}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-  @page { size: A4; margin: 1.2cm 1.5cm; }
-  *, *::before, *::after { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: white; width: 100%; }
-  body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 9.5pt; color: #000; }
-  .print-page { page-break-after: always; break-after: page; padding: 0; width: 100%; }
-  .print-page.last-page { page-break-after: auto; break-after: auto; }
-  .doc-letterhead { text-align: center; margin-bottom: 4mm; }
-  .doc-letterhead img { max-height: 55px; max-width: 100%; }
-  .doc-title { text-align: center; font-size: 13pt; font-weight: 700; margin: 3mm 0; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 2mm; }
-  .doc-header-grid { display: grid; gap: 2.5mm; margin-bottom: 3mm; }
-  .doc-header-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
-  .doc-header-grid.cols-2 { grid-template-columns: 1fr 1fr; }
-  .doc-header-grid.cols-1 { grid-template-columns: 1fr; }
-  .doc-header-box { border: 1px solid #999; padding: 2mm 3mm; font-size: 8.5pt; line-height: 1.4; }
-  .doc-header-box .box-label { font-weight: 700; font-size: 8pt; text-transform: uppercase; margin-bottom: 1mm; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 1mm; }
-  .doc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 8mm; margin-bottom: 3mm; font-size: 9pt; }
-  .doc-fields .field { display: flex; gap: 2mm; }
-  .doc-fields .field-label { font-weight: 700; white-space: nowrap; min-width: 100px; }
-  .doc-table { width: 100%; border-collapse: collapse; margin-bottom: 3mm; font-size: 8.5pt; }
-  .doc-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; border: 1px solid #999; padding: 1.5mm 2.5mm; text-align: left; font-size: 8pt; }
-  .doc-table td { border: 1px solid #999; padding: 1.5mm 2.5mm; vertical-align: top; }
-  .doc-table .text-right { text-align: right; }
-  .doc-table .total-row td { font-weight: 700; background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .doc-totals { margin-bottom: 3mm; font-size: 9pt; break-inside: avoid; }
-  .doc-totals .total-line { display: flex; justify-content: flex-end; gap: 4mm; padding: 0.5mm 0; }
-  .doc-totals .total-line.grand { font-weight: 700; font-size: 10pt; border-top: 2px solid #333; padding-top: 2mm; margin-top: 1mm; }
-  .doc-declaration { font-size: 8.5pt; border: 1px solid #999; padding: 2.5mm; margin: 3mm 0; line-height: 1.4; break-inside: avoid; }
-  .doc-footer { display: flex; justify-content: space-between; margin-top: 4mm; font-size: 9pt; break-inside: avoid; break-before: avoid; }
-  .doc-footer .signature-line { border-top: 1px solid #333; padding-top: 2mm; min-width: 150px; text-align: center; margin-top: 10mm; }
-  .doc-goods-desc { font-size: 8pt; line-height: 1.4; }
-  .doc-goods-desc .sku { font-weight: 700; }
-  .doc-goods-desc .detail { color: #555; }
-  .doc-pallet-remarks { white-space: pre-line; font-size: 8pt; }
-</style>
-</head>
-<body>${bodyHTML}</body>
-</html>`);
-  win.document.close();
-
-  // Wait for the popup page to fully load (fonts + images), then auto-print
-  win.addEventListener('load', function() {
-    (win.document.fonts ? win.document.fonts.ready : Promise.resolve()).then(() => {
-      setTimeout(() => {
-        win.focus();
-        win.print();
-        win.addEventListener('afterprint', () => { try { win.close(); } catch(e) {} }, { once: true });
-        setTimeout(() => { try { win.close(); } catch(e) {} }, 30000); // fallback close
-      }, 400);
-    });
-  });
-
-  // Navigate app back to preview while popup handles the print
-  navigateTo('shipment');
-  switchShipmentTab(document.querySelector('[data-tab="tab-preview"]'));
+  const prevTitle = document.title;
+  document.title = printTitle;
+  setTimeout(() => {
+    window.print();
+    document.title = prevTitle;
+    navigateTo('shipment');
+    switchShipmentTab(document.querySelector('[data-tab="tab-preview"]'));
+  }, 200);
 }
 
 /* ---- EXCEL (.xls via HTML table) ---- */
