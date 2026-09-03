@@ -719,6 +719,7 @@ table { border-collapse: collapse; width: 100%; }
   .doc-goods-desc .sku { font-weight: 700; }
   .doc-goods-desc .detail { color: #555; }
   .doc-pallet-remarks { white-space: pre-line; font-size: 8pt; }
+  .doc-table tr { break-inside: avoid; page-break-inside: avoid; }
 }
 
 /* On-screen preview of print docs */
@@ -3703,6 +3704,7 @@ function exportPDF(data, which) {
   .doc-goods-desc .sku { font-weight: 700; }
   .doc-goods-desc .detail { color: #555; }
   .doc-pallet-remarks { white-space: pre-line; font-size: 8pt; }
+  .doc-table tr { break-inside: avoid; page-break-inside: avoid; }
 </style>
 </head>
 <body>${bodyHTML}</body>
