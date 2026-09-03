@@ -706,9 +706,8 @@ table { border-collapse: collapse; width: 100%; }
   .doc-fields .field { display: flex; gap: 2mm; }
   .doc-fields .field-label { font-weight: 700; white-space: nowrap; min-width: 100px; }
   .doc-table { width: 100%; border-collapse: collapse; margin-bottom: 3mm; font-size: 8.5pt; }
-  .doc-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; border: 1px solid #999; padding: 1.5mm 2.5mm; text-align: left; font-size: 8pt; }
-  .doc-table td { border: 1px solid #999; padding: 1.5mm 2.5mm; vertical-align: top; }
-  .doc-table .text-right { text-align: right; }
+  .doc-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; border: 1px solid #999; padding: 1.5mm 2.5mm; text-align: left; vertical-align: middle; font-size: 8pt; }
+  .doc-table td { border: 1px solid #999; padding: 1.5mm 2.5mm; text-align: left; vertical-align: top; }
   .doc-table .total-row td { font-weight: 700; background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .doc-totals { margin-bottom: 3mm; font-size: 9pt; break-inside: avoid; }
   .doc-totals .total-line { display: flex; justify-content: flex-end; gap: 4mm; padding: 0.5mm 0; }
@@ -742,9 +741,8 @@ table { border-collapse: collapse; width: 100%; }
 .print-page-preview .doc-fields .field { display: flex; gap: 2mm; }
 .print-page-preview .doc-fields .field-label { font-weight: 700; white-space: nowrap; min-width: 100px; }
 .print-page-preview .doc-table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; font-size: 8.5pt; }
-.print-page-preview .doc-table th { background: #eee; font-weight: 700; border: 1px solid #999; padding: 2mm 2.5mm; text-align: left; font-size: 8pt; }
-.print-page-preview .doc-table td { border: 1px solid #999; padding: 2mm 2.5mm; vertical-align: top; }
-.print-page-preview .doc-table .text-right { text-align: right; }
+.print-page-preview .doc-table th { background: #eee; font-weight: 700; border: 1px solid #999; padding: 2mm 2.5mm; text-align: left; vertical-align: middle; font-size: 8pt; }
+.print-page-preview .doc-table td { border: 1px solid #999; padding: 2mm 2.5mm; text-align: left; vertical-align: top; }
 .print-page-preview .doc-table .total-row td { font-weight: 700; background: #f5f5f5; }
 .print-page-preview .doc-totals { margin-bottom: 4mm; font-size: 9pt; }
 .print-page-preview .doc-totals .total-line { display: flex; justify-content: flex-end; gap: 4mm; padding: 1mm 0; }
@@ -3535,18 +3533,18 @@ function generatePL(data) {
     const span = pitems.length;
     return pitems.map((it, j) => `
       <tr>
-        ${j===0 ? `<td rowspan="${span}" style="vertical-align:middle;"><strong>Pallet ${i+1}</strong></td>` : ''}
+        ${j===0 ? `<td${span>1?` rowspan="${span}"`:''}><strong>Pallet ${i+1}</strong></td>` : ''}
         <td>
           <div class="doc-goods-desc">
             <div class="sku">${esc(it.sku)} - ${esc(it.productName)}</div>
             <div class="detail">HS Code: ${esc(it.hsCode)} | Origin: ${esc(it.origin)}</div>
           </div>
         </td>
-        <td class="text-right">${parseFloat(it.cartonQty)||0}</td>
-        <td class="text-right">${(parseFloat(it.netWeight)||0).toFixed(2)}</td>
-        ${j===0 ? `<td ${span>1?`rowspan="${span}" `:''}style="text-align:right;vertical-align:middle;">${(parseFloat(p.grossWeight)||0).toFixed(2)}</td>
-                   <td ${span>1?`rowspan="${span}" `:''}style="text-align:left;vertical-align:middle;">${p.dimL} x ${p.dimW} x ${p.dimH} cm</td>
-                   <td ${span>1?`rowspan="${span}" `:''}style="text-align:left;vertical-align:middle;"><div class="doc-pallet-remarks">${esc(p.remarks)}</div></td>` : ''}
+        <td>${parseFloat(it.cartonQty)||0}</td>
+        <td>${(parseFloat(it.netWeight)||0).toFixed(2)}</td>
+        ${j===0 ? `<td${span>1?` rowspan="${span}"`:''}>${(parseFloat(p.grossWeight)||0).toFixed(2)}</td>
+                   <td${span>1?` rowspan="${span}"`:''}>${p.dimL} x ${p.dimW} x ${p.dimH} cm</td>
+                   <td${span>1?` rowspan="${span}"`:''}><div class="doc-pallet-remarks">${esc(p.remarks)}</div></td>` : ''}
       </tr>`).join('');
   }).join('');
 
@@ -3556,11 +3554,11 @@ function generatePL(data) {
         <tr>
           <th>Pallet Ref#</th>
           <th>Product Details</th>
-          <th style="text-align:right;">Carton Qty</th>
-          <th style="text-align:right;">Net Weight (kgs)</th>
-          <th style="text-align:right;">Gross Weight (kgs)</th>
-          <th style="text-align:left;">Pallet Dimensions (cm)</th>
-          <th style="text-align:left;">Remarks</th>
+          <th>Carton Qty</th>
+          <th>Net Weight (kgs)</th>
+          <th>Gross Weight (kgs)</th>
+          <th>Pallet Dimensions (cm)</th>
+          <th>Remarks</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -3693,10 +3691,10 @@ function buildDocBodyHTML(d, isCI, includeSigStamp) {
     `<td style="border:1px solid #ccc;padding:2px 5px;font-weight:bold;font-size:8.5pt;background:#f1f5f9;white-space:nowrap;">${lbl}</td>
      <td style="border:1px solid #ccc;padding:2px 5px;font-size:8.5pt;">${esc(val)}</td>`;
 
-  const TH  = s => `<th style="background:#1a2744;color:#fff;font-weight:bold;border:1px solid #777;padding:2px 5px;font-size:8pt;text-align:left;">${s}</th>`;
-  const THR = s => `<th style="background:#1a2744;color:#fff;font-weight:bold;border:1px solid #777;padding:2px 5px;font-size:8pt;text-align:right;">${s}</th>`;
-  const TD  = (s,extra='',rs='') => `<td${rs} style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;vertical-align:middle;${extra}">${s}</td>`;
-  const TDR = (s,extra='',rs='') => `<td${rs} style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;vertical-align:middle;text-align:right;${extra}">${s}</td>`;
+  const TH  = s => `<th style="background:#1a2744;color:#fff;font-weight:bold;border:1px solid #777;padding:2px 5px;font-size:8pt;text-align:left;vertical-align:middle;">${s}</th>`;
+  const THR = s => `<th style="background:#1a2744;color:#fff;font-weight:bold;border:1px solid #777;padding:2px 5px;font-size:8pt;text-align:left;vertical-align:middle;">${s}</th>`;
+  const TD  = (s,extra='',rs='') => `<td${rs} style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;text-align:left;vertical-align:top;${extra}">${s}</td>`;
+  const TDR = (s,extra='',rs='') => `<td${rs} style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;text-align:left;vertical-align:top;${extra}">${s}</td>`;
   const TOT = (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;font-weight:bold;background:#f1f5f9;${extra}">${s}</td>`;
   const TOTR= (s,extra='') => `<td style="border:1px solid #999;padding:2px 5px;font-size:8.5pt;font-weight:bold;background:#f1f5f9;text-align:right;${extra}">${s}</td>`;
 
