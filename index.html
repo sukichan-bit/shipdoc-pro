@@ -290,6 +290,7 @@ table { border-collapse: collapse; width: 100%; }
   padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: 9px;
   font-family: inherit; font-size: .9rem; color: var(--gray-800);
   background: rgba(255,255,255,0.7); transition: all var(--transition);
+  text-align: left;
 }
 .form-group input:hover, .form-group select:hover { border-color: var(--gray-300); background: rgba(255,255,255,0.9); }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
@@ -2725,7 +2726,9 @@ function removePallet(id) {
 function duplicatePallet(id) {
   const src = pallets.find(p => p.id === id);
   if (!src) return;
-  pallets.push({ ...src, id: uid() });
+  // Deep-copy the items array so the duplicate has its own SKU/qty references
+  // and edits to one pallet don't bleed into the other.
+  pallets.push({ ...src, id: uid(), items: src.items.map(it => ({ ...it })) });
   renderPallets();
   toast('Pallet duplicated');
 }
