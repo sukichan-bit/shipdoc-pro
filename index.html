@@ -3544,9 +3544,9 @@ function generatePL(data) {
         </td>
         <td class="text-right">${parseFloat(it.cartonQty)||0}</td>
         <td class="text-right">${(parseFloat(it.netWeight)||0).toFixed(2)}</td>
-        ${j===0 ? `<td class="text-right" rowspan="${span}" style="vertical-align:middle;">${(parseFloat(p.grossWeight)||0).toFixed(2)}</td>
-                   <td rowspan="${span}" style="vertical-align:middle;">${p.dimL} x ${p.dimW} x ${p.dimH} cm</td>
-                   <td rowspan="${span}" style="vertical-align:middle;"><div class="doc-pallet-remarks">${esc(p.remarks)}</div></td>` : ''}
+        ${j===0 ? `<td ${span>1?`rowspan="${span}" `:''}style="text-align:right;vertical-align:middle;">${(parseFloat(p.grossWeight)||0).toFixed(2)}</td>
+                   <td ${span>1?`rowspan="${span}" `:''}style="text-align:left;vertical-align:middle;">${p.dimL} x ${p.dimW} x ${p.dimH} cm</td>
+                   <td ${span>1?`rowspan="${span}" `:''}style="text-align:left;vertical-align:middle;"><div class="doc-pallet-remarks">${esc(p.remarks)}</div></td>` : ''}
       </tr>`).join('');
   }).join('');
 
@@ -3559,8 +3559,8 @@ function generatePL(data) {
           <th style="text-align:right;">Carton Qty</th>
           <th style="text-align:right;">Net Weight (kgs)</th>
           <th style="text-align:right;">Gross Weight (kgs)</th>
-          <th>Pallet Dimensions (cm)</th>
-          <th>Remarks</th>
+          <th style="text-align:left;">Pallet Dimensions (cm)</th>
+          <th style="text-align:left;">Remarks</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
